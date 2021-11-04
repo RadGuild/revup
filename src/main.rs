@@ -1,10 +1,22 @@
 extern crate clap;
 use clap::{App, Arg, ArgGroup};
 use dotenv;
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+#[derive(Serialize, Deserialize)]
+struct Commando {
+    command: String,
+    args: Vec<String>,
+    envs: Vec<String>,
+}
+#[derive(Serialize, Deserialize)]
+struct Commandos {
+    commands: Vec<Commando>,
+}
 
 fn main() {
     let matches =
@@ -178,10 +190,64 @@ fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Erro
 }
 
 fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
-    Ok(())
+    let mut vector: Vec<Commando> = Vec::new();
+    let reset = Commando {
+        command: "reset".to_owned(),
+        args: [].to_vec(),
+        envs: [].to_vec(),
+    };
+    vector.push(reset);
+
+    let account = Commando {
+        command: "new-account".to_owned(),
+        args: [].to_vec(),
+        envs: ["account".to_string()].to_vec(),
+    };
+    vector.push(account);
+
+    let token1 = Commando {
+        command: "new-resource-fixed".to_owned(),
+        args: [
+            "10000".to_string(),
+            "--name".to_string(),
+            "emunie".to_string(),
+            "--symbol".to_string(),
+            "EMT".to_string(),
+        ]
+        .to_vec(),
+        envs: ["token1".to_string()].to_vec(),
+    };
+    vector.push(token1);
+
+    let token2 = Commando {
+        command: "new-resource-fixed".to_owned(),
+        args: [
+            "10000".to_string(),
+            "--name".to_string(),
+            "gmunie".to_string(),
+            "--symbol".to_string(),
+            "GMT".to_string(),
+        ]
+        .to_vec(),
+        envs: ["token2".to_string()].to_vec(),
+    };
+    vector.push(token2);
+
+    let publish = Commando {
+        command: "publish".to_owned(),
+        args: [".".to_string()].to_vec(),
+        envs: ["package".to_string()].to_vec(),
+    };
+    vector.push(publish);
+
+    let commandos = Commandos { commands: vector };
+
+    let revup = std::fs::File::create(".revup")?;
+    let ret = serde_json::to_writer_pretty(revup, &commandos)?;
+    Ok(ret)
 }
 
-fn create_envup(file_path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+fn create_envup() -> Result<(), Box<dyn std::error::Error>> {
     let mut envup = std::fs::File::create("envup.sh")?;
     envup.write_all(b"if [ -f .env ]\nthen\nexport $(cat .env | sed 's/#.*//g' | xargs)\nfi")?;
     Ok(())
