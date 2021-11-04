@@ -8,3 +8,4 @@ edition = "2018"
 [dependencies]
 dirs = "4.0.0"
 clap = "2.33.3"
+dotenv = "0.15.0"

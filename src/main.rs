@@ -1,7 +1,8 @@
 extern crate clap;
 use clap::{App, Arg, ArgGroup};
+use dotenv;
 use std::fs::File;
-use std::io::{self, BufRead};
+use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -13,8 +14,9 @@ fn main() {
             .about(
                 "
 Sets up the rev2 simulator for calling functions instantly, looks for .revup file
-in the current dir, if it can't be found uses the config file in the standard
-config directory of your OS. 
+in the current dir, and runs the rev2 commands in order storing the created entities
+address locations in a dotenv file. Run ./envup.sh to acces the .env variables
+from the parent shell.
 
 Currently windows isn't supported. Pull requests for windows are welcome!
 ",
@@ -28,7 +30,7 @@ Currently windows isn't supported. Pull requests for windows are welcome!
             .arg(
                 Arg::with_name("init")
                     .short("i")
-                    .help("Creates a default config file in the working directory"),
+                    .help("Creates a default config file in the working directory, creates or clears the .env file"),
             )
             .arg(Arg::with_name("reset").short("r").help(
                 "Resets the simulator, creates a new account and stores the value in $account",
@@ -59,24 +61,24 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut cur_dir = std::env::current_dir()?;
     cur_dir.push(".revup");
 
-    let file;
+    let revup_file;
 
     if cur_dir.exists() {
-        file = cur_dir.to_path_buf();
-        println!("Using {:?}", file);
+        revup_file = cur_dir.to_path_buf();
+        println!("Using {:?}", revup_file);
     } else {
-        let config_file = return_config_path()?;
-        if config_file.exists() {
-            file = config_file;
-            println!("Using {:?}", file);
-        } else {
-            println!(".revup file not found in working directory or config directory \n\rCreating default config file in {:?}",
-               config_file);
-            let _res = create_default_config_file(config_file)?;
-        }
+        println!(".revup file not found, run --init to create a default .revup file");
+        std::process::exit(0);
     }
+
+    //Clear env vars
+    {
+        let _dot_env = std::fs::File::create(".env")?;
+    }
+
     Ok(())
 }
+
 fn run_file(path: PathBuf) {}
 
 fn run_reset() {
@@ -104,44 +106,57 @@ fn run_reset() {
     //Might not work on windows
     let res = walk_entities(String::from_utf8_lossy(&create.stdout).to_string());
 
-    let mut account;
+    let account;
     match res {
         Ok(v) => {
-            account = v;
+            account = v[0].to_string();
         }
         Err(e) => {
             println!("Couldn't find account, exiting");
             std::process::exit(1);
         }
     }
-    /*
+
     let mut arg = "account=".to_string();
-    arg.push_str(&account);
-    let export = Command::new("export")
-        .arg(arg)
-        .output()
-        .expect("Unable to set var");
-    */
+    println!(">>> export {}", arg);
+    dotenv::dotenv().ok();
 }
 
 fn run_init() {
     match std::env::current_dir() {
         Ok(mut dir) => {
             dir.push(".revup");
-            match create_default_config_file(dir) {
+            match create_default_config_file() {
                 Ok(_v) => println!("Default config file created in working directory"),
-                Err(e) => println!("Error while creating config file \n\r{}", e),
+                Err(e) => println!("Error while creating config file \n{}", e),
+            }
+            //For now only linux supported
+            dir.pop();
+            dir.push("envup.sh");
+            if dir.exists() {
+                println!("envup.sh already exists exiting");
+                std::process::exit(0);
+            }
+            match create_envup() {
+                Ok(_v) => println!("envup.sh created in working directory"),
+                Err(e) => println!("Error creating envup.sh \n{}", e),
             }
         }
-        Err(e) => println!("Error: couldn't find working directory \n\r{}", e),
+        Err(e) => println!("Error: couldn't access working directory \n{}", e),
     }
 }
 
-fn walk_entities(stdout: String) -> Result<String, Box<dyn std::error::Error>> {
+fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    //Quick and dirty
     let mut ret_vec: Vec<String> = Vec::new();
-    //Quick and dirty todo:change unwrap() and return err
-    let loc_entities = stdout.rfind("New Entities").unwrap();
-    let substr_entities = &stdout[loc_entities..];
+    let location: usize;
+
+    match stdout.rfind("New Entities") {
+        Some(loc) => location = loc,
+        None => return Err("No entities found".into()),
+    }
+
+    let substr_entities = &stdout[location..];
     let lines: Vec<&str> = substr_entities.lines().collect();
 
     for line in lines {
@@ -149,53 +164,25 @@ fn walk_entities(stdout: String) -> Result<String, Box<dyn std::error::Error>> {
             || line.starts_with("└─ ResourceDef: ")
             || line.starts_with("└─ Package: ")
         {
-            let mut test: u16 = 0;
             let entity_vec: Vec<&str> = line.split_whitespace().collect();
-            for entity in entity_vec {
-                println!("{}", test);
-                println!("{}", entity);
-                test += 1;
-            }
-            //let entity = entity_vec[2].to_string();
-            //ret_vec.push(entity);
+            let entity = entity_vec[2].to_string();
+            ret_vec.push(entity);
         }
     }
-    Ok(stdout)
+
+    if ret_vec.len() < 1 {
+        return Err("No entities found".into());
+    }
+
+    Ok(ret_vec)
 }
 
-fn read_file(path: PathBuf) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let mut cmd_vec = Vec::new();
-    if let Ok(lines) = read_lines(path) {
-        for line in lines {
-            if let Ok(cmd) = line {
-                cmd_vec.push(cmd);
-            }
-        }
-    }
-    if cmd_vec.len() == 0 {
-        return Err("Error: file is empty".into());
-    }
-    Ok(cmd_vec)
-}
-
-fn create_default_config_file(file_path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
-where
-    P: AsRef<Path>,
-{
-    let file = File::open(filename)?;
-    Ok(io::BufReader::new(file).lines())
-}
-
-fn return_config_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    match dirs::config_dir() {
-        Some(mut path) => {
-            path.push("revup");
-            Ok(path)
-        }
-        None => Err("Config dir not found".into()),
-    }
+fn create_envup(file_path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let mut envup = std::fs::File::create("envup.sh")?;
+    envup.write_all(b"if [ -f .env ]\nthen\nexport $(cat .env | sed 's/#.*//g' | xargs)\nfi")?;
+    Ok(())
 }
