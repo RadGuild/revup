@@ -27,7 +27,7 @@ fn main() {
                 "
 Sets up the rev2 simulator for calling functions instantly, looks for .revup file
 in the current dir, and runs the rev2 commands in order storing the created entities
-address locations in a dotenv file. Run ./envup.sh to acces the .env variables
+address locations in a dotenv file. Run ./envup.sh to access the .env variables
 from the parent shell.
 
 Currently windows isn't supported. Pull requests for windows are welcome!
@@ -39,11 +39,9 @@ Currently windows isn't supported. Pull requests for windows are welcome!
                     .takes_value(true)
                     .help("Uses a custom .revup file"),
             )
-            .arg(
-                Arg::with_name("init")
-                    .short("i")
-                    .help("Creates a default config file in the working directory, creates or clears the .env file"),
-            )
+            .arg(Arg::with_name("init").short("i").help(
+                "Creates a default config file in the working directory, and the envup.sh file",
+            ))
             .arg(Arg::with_name("reset").short("r").help(
                 "Resets the simulator, creates a new account and stores the value in $account",
             ))
@@ -73,27 +71,37 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut cur_dir = std::env::current_dir()?;
     cur_dir.push(".revup");
 
-    let revup_file;
-
-    if cur_dir.exists() {
-        revup_file = cur_dir.to_path_buf();
-        println!("Using {:?}", revup_file);
-    } else {
+    if !cur_dir.exists() {
         println!(".revup file not found, run --init to create a default .revup file");
         std::process::exit(0);
     }
 
-    //Clear env vars
-    {
-        let _dot_env = std::fs::File::create(".env")?;
+    match run_file(cur_dir).err() {
+        Some(e) => println!("Error while executing commands \n{}", e),
+        None => {}
     }
 
     Ok(())
 }
 
-fn run_file(path: PathBuf) {}
+fn run_file(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    //Clear env vars
+    {
+        let _dot_env = std::fs::File::create(".env")?;
+    }
+
+    let file = std::fs::File::open(path)?;
+    let json: Commandos = serde_json::from_reader(file)?;
+
+    for cmd in json.commands {
+        run_cmd(cmd.command, cmd.args, cmd.envs)?;
+    }
+
+    Ok(())
+}
 
 fn run_reset() {
+    /*
     //Reset ledger state
     println!(">>>rev2 reset");
     let reset = Command::new("rev2")
@@ -131,16 +139,20 @@ fn run_reset() {
 
     let mut arg = "account=".to_string();
     println!(">>> export {}", arg);
-    dotenv::dotenv().ok();
+    */
 }
 
 fn run_init() {
     match std::env::current_dir() {
         Ok(mut dir) => {
             dir.push(".revup");
-            match create_default_config_file() {
-                Ok(_v) => println!("Default config file created in working directory"),
-                Err(e) => println!("Error while creating config file \n{}", e),
+            if !dir.exists() {
+                match create_default_config_file() {
+                    Ok(_v) => println!("Default config file created in working directory"),
+                    Err(e) => println!("Error while creating config file \n{}", e),
+                }
+            } else {
+                println!(".revup file already exists remove it first, skipping");
             }
             //For now only linux supported
             dir.pop();
@@ -156,6 +168,23 @@ fn run_init() {
         }
         Err(e) => println!("Error: couldn't access working directory \n{}", e),
     }
+}
+
+fn run_cmd(
+    command: String,
+    args: Vec<String>,
+    envs: Vec<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if !args.is_empty() {
+        let res = Command::new("rev2").arg(&command).args(&args).output()?;
+        println!("{}", String::from_utf8_lossy(&res.stdout).to_string());
+        println!("{}", String::from_utf8_lossy(&res.stderr).to_string());
+    } else {
+        let res = Command::new("rev2").arg(&command).output()?;
+        println!("{}", String::from_utf8_lossy(&res.stdout).to_string());
+        println!("{}", String::from_utf8_lossy(&res.stderr).to_string());
+    }
+    Ok(())
 }
 
 fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Error>> {
