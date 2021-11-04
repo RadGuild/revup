@@ -7,18 +7,16 @@ use std::process::Command;
 
 fn main() {
     let matches =
-        App::new("revup v0.0.1")
-            .version("0.0.1")
-            .author("dRAT3")
+        App::new("revup")
+            .version("v0.0.1")
+            .author("author: dRAT3")
             .about(
                 "
-
 Sets up the rev2 simulator for calling functions instantly, looks for .revup file
 in the current dir, if it can't be found uses the config file in the standard
 config directory of your OS. 
 
 Currently windows isn't supported. Pull requests for windows are welcome!
-
 ",
             )
             .arg(
@@ -104,7 +102,7 @@ fn run_reset() {
     assert!(create.status.success());
 
     //Might not work on windows
-    let res = walk_create(String::from_utf8_lossy(&create.stdout).to_string());
+    let res = walk_entities(String::from_utf8_lossy(&create.stdout).to_string());
 
     let mut account;
     match res {
@@ -139,13 +137,29 @@ fn run_init() {
     }
 }
 
-fn walk_create(stdout: String) -> Result<String, Box<dyn std::error::Error>> {
+fn walk_entities(stdout: String) -> Result<String, Box<dyn std::error::Error>> {
+    let mut ret_vec: Vec<String> = Vec::new();
     //Quick and dirty todo:change unwrap() and return err
     let loc_entities = stdout.rfind("New Entities").unwrap();
-
     let substr_entities = &stdout[loc_entities..];
+    let lines: Vec<&str> = substr_entities.lines().collect();
 
-    println!("{}", substr_entities);
+    for line in lines {
+        if line.starts_with("└─ Component: ")
+            || line.starts_with("└─ ResourceDef: ")
+            || line.starts_with("└─ Package: ")
+        {
+            let mut test: u16 = 0;
+            let entity_vec: Vec<&str> = line.split_whitespace().collect();
+            for entity in entity_vec {
+                println!("{}", test);
+                println!("{}", entity);
+                test += 1;
+            }
+            //let entity = entity_vec[2].to_string();
+            //ret_vec.push(entity);
+        }
+    }
     Ok(stdout)
 }
 
