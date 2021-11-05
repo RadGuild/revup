@@ -2,8 +2,7 @@ extern crate clap;
 use clap::{App, Arg, ArgGroup};
 use dotenv;
 use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::{BufRead, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -271,7 +270,7 @@ fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
     };
     vector.push(publish);
 
-    println!("Enter the arguments for the first function call example: PackageName new 200,$token1 200,$token2");
+    println!("Enter the arguments for the first function call \nexample: PackageName new 200,$token1 200,$token2 \nDon't use \" or \' !");
     let mut s = String::new();
     std::io::stdin().read_line(&mut s)?;
     let mut a: Vec<&str> = s.split_whitespace().collect();
