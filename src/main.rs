@@ -172,6 +172,10 @@ fn run_cmd(
     if !envs.is_empty() {
         let entities = walk_entities(String::from_utf8_lossy(&res.stdout).to_string())?;
 
+        for entity in &entities {
+            //println!("{}", entity);
+        }
+
         for (ent_it, env_it) in entities.iter().zip(envs.iter()) {
             println!("{}={}", env_it, ent_it);
             let _res = append_env(env_it.to_string(), ent_it.to_string())?;
@@ -194,9 +198,17 @@ fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Erro
     let lines: Vec<&str> = substr_entities.lines().collect();
 
     for line in lines {
-        if line.starts_with("├─") || line.starts_with("└─") {
+        if line.starts_with("└─ Component: ")
+            || line.starts_with("└─ ResourceDef: ")
+            || line.starts_with("└─ Package: ")
+            || line.starts_with("├─ Component: ")
+            || line.starts_with("├─ ResourceDef: ")
+            || line.starts_with("├─ Package: ")
+        {
+            println!("{}", &line);
             let entity_vec: Vec<&str> = line.split_whitespace().collect();
             let entity = entity_vec[2].to_string();
+            //println!("{}", &entity);
             ret_vec.push(entity);
         }
     }
