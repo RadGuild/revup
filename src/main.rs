@@ -172,10 +172,6 @@ fn run_cmd(
     if !envs.is_empty() {
         let entities = walk_entities(String::from_utf8_lossy(&res.stdout).to_string())?;
 
-        for entity in &entities {
-            //println!("{}", entity);
-        }
-
         for (ent_it, env_it) in entities.iter().zip(envs.iter()) {
             println!("{}={}", env_it, ent_it);
             let _res = append_env(env_it.to_string(), ent_it.to_string())?;
