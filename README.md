@@ -2,8 +2,8 @@
 Todo:
 * Windows and MacOS support!!!
 * Testing
+* -f flag untested
 * Append .gitignore to include .env
-* Whatever you like to improve
 
 License: MIT
 
