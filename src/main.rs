@@ -27,8 +27,8 @@ fn main() {
                 "
 Sets up the rev2 simulator for calling functions instantly, looks for .revup file
 in the current dir, and runs the rev2 commands in order storing the created entities
-address locations in a dotenv file. Run ./envup.sh to access the .env variables
-from the parent shell.
+address locations in a dotenv file. Run \">>> source .env\" after running revup and all 
+your environment variables will be active in your shell.
 
 Currently windows isn't supported. Pull requests for windows are welcome!
 ",
@@ -93,7 +93,36 @@ fn run_file(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     let json: Commandos = serde_json::from_reader(file)?;
 
     for cmd in json.commands {
-        run_cmd(cmd.command, cmd.args, cmd.envs)?;
+        dotenv::dotenv().ok();
+        //Replace $ with values from .env //Quick 'n Dirty no idea how this is going to behave on
+        //non utf-8 systems , one big mess, can somebody refactor this and create a proper
+        //function?
+        let mut args_vec: Vec<String> = Vec::new();
+        for arg in &cmd.args {
+            if arg.contains("$") {
+                let mut loc = arg.find("$").unwrap();
+                loc += 1;
+                let substr_arg = &arg[loc..];
+                let find_string = substr_arg.to_string();
+
+                for (key, value) in std::env::vars() {
+                    if key == find_string {
+                        println!("Found var {}", find_string);
+                        if loc > 0 {
+                            loc -= 1;
+                            let mut final_arg: String = arg[..loc].to_string();
+                            final_arg.push_str(&value);
+                            args_vec.push(final_arg);
+                        } else {
+                            args_vec.push(value);
+                        }
+                    }
+                }
+            } else {
+                args_vec.push(arg.to_string());
+            }
+        }
+        run_cmd(cmd.command, args_vec, cmd.envs)?;
     }
 
     Ok(())
@@ -165,8 +194,14 @@ fn run_cmd(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let res;
     if !args.is_empty() {
+        print!(">>> {}", command);
+        for arg in &args {
+            print!(" {} ", arg);
+        }
+        print!("\n");
         res = Command::new("rev2").arg(&command).args(&args).output()?;
     } else {
+        println!(">>> {}", command);
         res = Command::new("rev2").arg(&command).output()?;
     }
     println!("{}", String::from_utf8_lossy(&res.stdout).to_string());
@@ -265,14 +300,44 @@ fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
         envs: ["token2".to_string()].to_vec(),
     };
     vector.push(token2);
-    /*
+
     let publish = Commando {
         command: "publish".to_owned(),
         args: [".".to_string()].to_vec(),
         envs: ["package".to_string()].to_vec(),
     };
     vector.push(publish);
-    */
+
+    println!("Enter the arguments for the first function call example: PackageName new 200,$token1 200,$token2");
+    let mut s = String::new();
+    std::io::stdin().read_line(&mut s)?;
+    let mut a: Vec<&str> = s.split_whitespace().collect();
+    a.insert(0, "$package");
+
+    let mut arguments_owned: Vec<String> = Vec::new();
+    for i in a {
+        arguments_owned.push(i.to_string());
+    }
+
+    println!("Enter the names of the env variables in correct order");
+    let mut s = String::new();
+    std::io::stdin().read_line(&mut s)?;
+    let e: Vec<&str> = s.split_whitespace().collect();
+
+    let mut envs_owned: Vec<String> = Vec::new();
+
+    for i in e {
+        envs_owned.push(i.to_string());
+    }
+
+    let first_function = Commando {
+        command: "call-function".to_owned(),
+        args: arguments_owned,
+        envs: envs_owned,
+    };
+
+    vector.push(first_function);
+
     let commandos = Commandos { commands: vector };
 
     let revup = std::fs::File::create(".revup")?;
