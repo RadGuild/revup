@@ -80,7 +80,6 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some(e) => println!("Error while executing commands \n{}", e),
         None => {}
     }
-
     Ok(())
 }
 
@@ -154,17 +153,6 @@ fn run_init() {
             } else {
                 println!(".revup file already exists remove it first, skipping");
             }
-            //For now only linux supported
-            dir.pop();
-            dir.push("envup.sh");
-            if dir.exists() {
-                println!("envup.sh already exists exiting");
-                std::process::exit(0);
-            }
-            match create_envup() {
-                Ok(_v) => println!("envup.sh created in working directory"),
-                Err(e) => println!("Error creating envup.sh \n{}", e),
-            }
         }
         Err(e) => println!("Error: couldn't access working directory \n{}", e),
     }
@@ -175,14 +163,22 @@ fn run_cmd(
     args: Vec<String>,
     envs: Vec<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let res;
     if !args.is_empty() {
-        let res = Command::new("rev2").arg(&command).args(&args).output()?;
-        println!("{}", String::from_utf8_lossy(&res.stdout).to_string());
-        println!("{}", String::from_utf8_lossy(&res.stderr).to_string());
+        res = Command::new("rev2").arg(&command).args(&args).output()?;
     } else {
-        let res = Command::new("rev2").arg(&command).output()?;
-        println!("{}", String::from_utf8_lossy(&res.stdout).to_string());
-        println!("{}", String::from_utf8_lossy(&res.stderr).to_string());
+        res = Command::new("rev2").arg(&command).output()?;
+    }
+    println!("{}", String::from_utf8_lossy(&res.stdout).to_string());
+    println!("{}", String::from_utf8_lossy(&res.stderr).to_string());
+
+    if !envs.is_empty() {
+        let entities = walk_entities(String::from_utf8_lossy(&res.stdout).to_string())?;
+
+        for (ent_it, env_it) in entities.iter().zip(envs.iter()) {
+            println!("{}={}", env_it, ent_it);
+            let _res = append_env(env_it.to_string(), ent_it.to_string())?;
+        }
     }
     Ok(())
 }
@@ -216,6 +212,14 @@ fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Erro
     }
 
     Ok(ret_vec)
+}
+
+fn append_env(mut env: String, ent: String) -> Result<(), Box<dyn std::error::Error>> {
+    let mut dotenv = std::fs::OpenOptions::new().append(true).open(".env")?;
+    env.push_str("=");
+    env.push_str(&ent);
+    env.push_str("\n");
+    Ok(dotenv.write_all(env.as_bytes())?)
 }
 
 fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
@@ -261,23 +265,17 @@ fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
         envs: ["token2".to_string()].to_vec(),
     };
     vector.push(token2);
-
+    /*
     let publish = Commando {
         command: "publish".to_owned(),
         args: [".".to_string()].to_vec(),
         envs: ["package".to_string()].to_vec(),
     };
     vector.push(publish);
-
+    */
     let commandos = Commandos { commands: vector };
 
     let revup = std::fs::File::create(".revup")?;
     let ret = serde_json::to_writer_pretty(revup, &commandos)?;
     Ok(ret)
-}
-
-fn create_envup() -> Result<(), Box<dyn std::error::Error>> {
-    let mut envup = std::fs::File::create("envup.sh")?;
-    envup.write_all(b"if [ -f .env ]\nthen\nexport $(cat .env | sed 's/#.*//g' | xargs)\nfi")?;
-    Ok(())
 }
