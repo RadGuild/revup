@@ -194,10 +194,7 @@ fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Erro
     let lines: Vec<&str> = substr_entities.lines().collect();
 
     for line in lines {
-        if line.starts_with("└─ Component: ")
-            || line.starts_with("└─ ResourceDef: ")
-            || line.starts_with("└─ Package: ")
-        {
+        if line.starts_with("├─") || line.starts_with("└─") {
             let entity_vec: Vec<&str> = line.split_whitespace().collect();
             let entity = entity_vec[2].to_string();
             ret_vec.push(entity);
