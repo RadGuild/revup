@@ -25,7 +25,7 @@ fn main() {
             .author("author: dRAT3")
             .about(
                 "
-Sets up the rev2 simulator for calling functions instantly, looks for .revup file
+Sets up the rev2 simulator for calling functions instantly, looks for revup.json file
 in the current dir, and runs the rev2 commands in order storing the created entities
 address locations in a dotenv file. Run \">>> source .env\" after running revup and all 
 your environment variables will be active in your shell.
@@ -37,55 +37,60 @@ Currently windows isn't supported. Pull requests for windows are welcome!
                 Arg::with_name("file")
                     .short("f")
                     .takes_value(true)
-                    .help("Uses a custom .revup file"),
+                    .help("Uses a custom revup.json file"),
             )
             .arg(Arg::with_name("init").short("i").help(
                 "Creates a default config file in the working directory, and the envup.sh file",
             ))
-            .arg(Arg::with_name("reset").short("r").help(
-                "Resets the simulator, creates a new account and stores the value in $account",
-            ))
+            .arg(Arg::with_name("keep")
+                .short("k")
+                .help("Keeps the environment variables in the .env, useful when working with multiple revup.json files"))
             .group(
                 ArgGroup::with_name("group")
-                    .args(&["file", "reset", "init"])
+                    .args(&["file", "init"])
                     .required(false),
             )
             .get_matches();
 
+    let mut keep = false;
+    if matches.is_present("keep") {
+        keep = true;
+    }
+
     if matches.is_present("file") {
         let path = Path::new(matches.value_of("file").unwrap());
-        run_file(path.to_path_buf());
-    } else if matches.is_present("reset") {
-        run_reset();
+        match run_file(path.to_path_buf(), keep).err() {
+            Some(e) => println!("{}", e),
+            None => {}
+        }
     } else if matches.is_present("init") {
         run_init();
     } else {
-        match run().err() {
+        match run(keep).err() {
             Some(e) => println!("{}", e),
             None => {}
         }
     }
 }
 
-fn run() -> Result<(), Box<dyn std::error::Error>> {
+fn run(keep: bool) -> Result<(), Box<dyn std::error::Error>> {
     let mut cur_dir = std::env::current_dir()?;
-    cur_dir.push(".revup");
+    cur_dir.push("revup.json");
 
     if !cur_dir.exists() {
-        println!(".revup file not found, run --init to create a default .revup file");
+        println!("revup.json file not found, run --init to create a default revup.json file");
         std::process::exit(0);
     }
 
-    match run_file(cur_dir).err() {
+    match run_file(cur_dir, keep).err() {
         Some(e) => println!("Error while executing commands \n{}", e),
         None => {}
     }
     Ok(())
 }
 
-fn run_file(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    //Clear env vars
-    {
+fn run_file(path: PathBuf, keep: bool) -> Result<(), Box<dyn std::error::Error>> {
+    if !keep {
         let _dot_env = std::fs::File::create(".env")?;
     }
 
@@ -128,59 +133,17 @@ fn run_file(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn run_reset() {
-    /*
-    //Reset ledger state
-    println!(">>>rev2 reset");
-    let reset = Command::new("rev2")
-        .arg("reset")
-        .output()
-        .expect("failed to execute rev2");
-    println!("{}", String::from_utf8_lossy(&reset.stdout).to_string());
-    println!("{}", String::from_utf8_lossy(&reset.stderr).to_string());
-
-    assert!(reset.status.success());
-
-    println!(">>>rev2 new-account");
-    //Create account and export value
-    let create = Command::new("rev2")
-        .arg("new-account")
-        .output()
-        .expect("failed to execute rev2");
-    println!("{}", String::from_utf8_lossy(&create.stdout).to_string());
-    println!("{}", String::from_utf8_lossy(&create.stderr).to_string());
-    assert!(create.status.success());
-
-    //Might not work on windows
-    let res = walk_entities(String::from_utf8_lossy(&create.stdout).to_string());
-
-    let account;
-    match res {
-        Ok(v) => {
-            account = v[0].to_string();
-        }
-        Err(e) => {
-            println!("Couldn't find account, exiting");
-            std::process::exit(1);
-        }
-    }
-
-    let mut arg = "account=".to_string();
-    println!(">>> export {}", arg);
-    */
-}
-
 fn run_init() {
     match std::env::current_dir() {
         Ok(mut dir) => {
-            dir.push(".revup");
+            dir.push("revup.json");
             if !dir.exists() {
                 match create_default_config_file() {
                     Ok(_v) => println!("Default config file created in working directory"),
                     Err(e) => println!("Error while creating config file \n{}", e),
                 }
             } else {
-                println!(".revup file already exists remove it first, skipping");
+                println!("revup.json file already exists remove it first, skipping");
             }
         }
         Err(e) => println!("Error: couldn't access working directory \n{}", e),
@@ -340,7 +303,7 @@ fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
 
     let commandos = Commandos { commands: vector };
 
-    let revup = std::fs::File::create(".revup")?;
+    let revup = std::fs::File::create("revup.json")?;
     let ret = serde_json::to_writer_pretty(revup, &commandos)?;
     Ok(ret)
 }
