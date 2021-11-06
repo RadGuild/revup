@@ -36,7 +36,7 @@ Currently windows isn't supported. Pull requests for windows are welcome!
                 Arg::with_name("file")
                     .short("f")
                     .takes_value(true)
-                    .help("Uses a custom revup.json file"),
+                    .help("Use a custom json file"),
             )
             .arg(Arg::with_name("init").short("i").help(
                 "Creates a default config file in the working directory, and the envup.sh file",
@@ -111,7 +111,6 @@ fn run_file(path: PathBuf, keep: bool) -> Result<(), Box<dyn std::error::Error>>
 
                 for (key, value) in std::env::vars() {
                     if key == find_string {
-                        println!("Found var {}", find_string);
                         if loc > 0 {
                             loc -= 1;
                             let mut final_arg: String = arg[..loc].to_string();
