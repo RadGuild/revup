@@ -30,20 +30,22 @@ impl Command {
         }
     }
 
-    fn new_no_envs(command: &str, args: Vec<&str>) -> Command {
-        let args_owned: Vec<String> = ret_string_vec(args);
-        Command {
-            cmd: command.to_string(),
-            args: args_owned,
-            envs: [].to_vec(),
-        }
-    }
     fn new_no_args(command: &str, envs: Vec<&str>) -> Command {
         let envs_owned: Vec<String> = ret_string_vec(envs);
         Command {
             cmd: command.to_string(),
             args: [].to_vec(),
             envs: envs_owned,
+        }
+    }
+    fn print(&self) {
+        print!("\nCall:\n{}", self.cmd);
+        for arg in &self.args {
+            print!(" {}", arg);
+        }
+        print!("\n With envs:\n");
+        for env in &self.envs {
+            print!("{} ", env);
         }
     }
 }
@@ -63,8 +65,6 @@ Sets up the rev2 simulator for calling functions instantly, looks for revup.json
 in the current dir, and runs the rev2 commands in order storing the created entities
 address locations in a dotenv file. Run \">>> source .env\" after running revup and all 
 your environment variables will be active in your shell.
-
-Currently windows isn't supported. Pull requests for windows are welcome!
 ",
             )
             .arg(
@@ -78,18 +78,28 @@ Currently windows isn't supported. Pull requests for windows are welcome!
                 .short("i")
                 .long("init")
                 .help(
-                "Creates a default config file in the working directory, and the envup.sh file",
+                "Creates a default config file in the working directory",
             ))
             .arg(Arg::with_name("keep")
                 .short("k")
+                .long("keep")
                 .help("Keeps the environment variables in the .env, useful when working with multiple revup.json files"))
             .arg(Arg::with_name("append")
                 .short("a")
-                .help("Appends revup file with custom command, use -a file.json to change a different file then the default")
+                .long("append")
+                .help("Appends the revup.json file with custom command, to write to a different file append with filename")
                 .takes_value(true))
+            .arg(Arg::with_name("pop")
+                .short("p")
+                .long("pop")
+                .help("Removes the last command in the revup.json file, to write to a different file append with filename")
+                .takes_value(true))
+            .arg(Arg::with_name("list")
+                .long("ls")
+                .help("Lists all calls and envs"))
             .group(
                 ArgGroup::with_name("group")
-                    .args(&["file", "init", "append"])
+                    .args(&["file", "init", "append", "pop", "list"])
                     .required(false),
             )
             .get_matches();
@@ -102,21 +112,36 @@ Currently windows isn't supported. Pull requests for windows are welcome!
     if matches.is_present("file") {
         let path = Path::new(matches.value_of("file").unwrap());
         match run_file(path.to_path_buf(), keep).err() {
-            Some(e) => println!("{}", e),
+            Some(e) => println!("Critical error, aborting \n{}", e),
             None => {}
         }
     } else if matches.is_present("init") {
-        run_init();
+        match run_init().err() {
+            Some(e) => println!("Critical error, aborting \n{}", e),
+            None => {}
+        }
     } else if matches.is_present("append") {
         let path = matches.value_of("append").unwrap_or("revup.json");
         let path_buf = PathBuf::from(path);
         match run_append(path_buf).err() {
-            Some(e) => println!("{}", e),
+            Some(e) => println!("Critical error, aborting \n{}", e),
+            None => {}
+        }
+    } else if matches.is_present("append") {
+        let path = matches.value_of("append").unwrap_or("revup.json");
+        let path_buf = PathBuf::from(path);
+        match run_pop(path_buf).err() {
+            Some(e) => println!("Critical error, aborting \n{}", e),
+            None => {}
+        }
+    } else if matches.is_present("list") {
+        match run_ls().err() {
+            Some(e) => println!("Critical error, aborting \n{}", e),
             None => {}
         }
     } else {
         match run(keep).err() {
-            Some(e) => println!("{}", e),
+            Some(e) => println!("Critical error, aborting \n{}", e),
             None => {}
         }
     }
@@ -181,21 +206,19 @@ fn run_file(path: PathBuf, keep: bool) -> Result<(), Box<dyn std::error::Error>>
     Ok(())
 }
 
-fn run_init() {
-    match std::env::current_dir() {
-        Ok(mut dir) => {
-            dir.push("revup.json");
-            if !dir.exists() {
-                match create_default_config_file() {
-                    Ok(_v) => println!("Default config file created in working directory"),
-                    Err(e) => println!("Error while creating config file \n{}", e),
-                }
-            } else {
-                println!("revup.json file already exists remove it first, skipping");
-            }
+fn run_init() -> Result<(), Box<dyn std::error::Error>> {
+    let mut dir = std::env::current_dir()?;
+    dir.push("revup.json");
+    if !dir.exists() {
+        match create_default_config_file() {
+            Ok(_v) => println!("Default config file created in working directory"),
+            Err(e) => println!("Error while creating config file \n{}", e),
         }
-        Err(e) => println!("Error: couldn't access working directory \n{}", e),
+    } else {
+        println!("revup.json file already exists remove it first, skipping");
     }
+
+    Ok(())
 }
 
 fn run_append(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
@@ -221,6 +244,31 @@ fn run_append(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
 
     let json_file = std::fs::File::create(path)?;
     let ret = serde_json::to_writer_pretty(json_file, &json)?;
+
+    Ok(ret)
+}
+
+fn run_pop(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let json_file = std::fs::File::open(&path)?;
+    let mut json: Commands = serde_json::from_reader(json_file)?;
+    let len = json.commands.len();
+    let rm = json.commands.remove(len);
+    println!("Success, removed {}", rm.cmd);
+    Ok(())
+}
+
+fn run_ls() -> Result<(), Box<dyn std::error::Error>> {
+    let json_file = std::fs::File::open("revup.json")?;
+    let json: Commands = serde_json::from_reader(json_file)?;
+
+    for command in json.commands {
+        command.print();
+    }
+
+    dotenv::dotenv().ok();
+    for (key, value) in std::env::vars() {
+        println!("{}={}", key, value);
+    }
 
     Ok(())
 }
