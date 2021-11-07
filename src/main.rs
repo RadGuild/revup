@@ -1,20 +1,55 @@
 extern crate clap;
 use clap::{App, Arg, ArgGroup};
-use dotenv;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 #[derive(Serialize, Deserialize)]
-struct Commando {
-    command: String,
+struct Command {
+    cmd: String,
     args: Vec<String>,
     envs: Vec<String>,
 }
+
+impl Command {
+    fn new(command: &str, args: Vec<&str>, envs: Vec<&str>) -> Command {
+        let args_owned: Vec<String> = ret_string_vec(args);
+        let envs_owned: Vec<String> = ret_string_vec(envs);
+        Command {
+            cmd: command.to_string(),
+            args: args_owned,
+            envs: envs_owned,
+        }
+    }
+
+    fn new_only_command(command: &str) -> Command {
+        Command {
+            cmd: command.to_string(),
+            args: [].to_vec(),
+            envs: [].to_vec(),
+        }
+    }
+
+    fn new_no_envs(command: &str, args: Vec<&str>) -> Command {
+        let args_owned: Vec<String> = ret_string_vec(args);
+        Command {
+            cmd: command.to_string(),
+            args: args_owned,
+            envs: [].to_vec(),
+        }
+    }
+    fn new_no_args(command: &str, envs: Vec<&str>) -> Command {
+        let envs_owned: Vec<String> = ret_string_vec(envs);
+        Command {
+            cmd: command.to_string(),
+            args: [].to_vec(),
+            envs: envs_owned,
+        }
+    }
+}
 #[derive(Serialize, Deserialize)]
-struct Commandos {
-    commands: Vec<Commando>,
+struct Commands {
+    commands: Vec<Command>,
 }
 
 fn main() {
@@ -35,18 +70,26 @@ Currently windows isn't supported. Pull requests for windows are welcome!
             .arg(
                 Arg::with_name("file")
                     .short("f")
+                    .long("file")
                     .takes_value(true)
                     .help("Use a custom json file"),
             )
-            .arg(Arg::with_name("init").short("i").help(
+            .arg(Arg::with_name("init")
+                .short("i")
+                .long("init")
+                .help(
                 "Creates a default config file in the working directory, and the envup.sh file",
             ))
             .arg(Arg::with_name("keep")
                 .short("k")
                 .help("Keeps the environment variables in the .env, useful when working with multiple revup.json files"))
+            .arg(Arg::with_name("append")
+                .short("a")
+                .help("Appends revup file with custom command, use -a file.json to change a different file then the default")
+                .takes_value(true))
             .group(
                 ArgGroup::with_name("group")
-                    .args(&["file", "init"])
+                    .args(&["file", "init", "append"])
                     .required(false),
             )
             .get_matches();
@@ -64,6 +107,13 @@ Currently windows isn't supported. Pull requests for windows are welcome!
         }
     } else if matches.is_present("init") {
         run_init();
+    } else if matches.is_present("append") {
+        let path = matches.value_of("append").unwrap_or("revup.json");
+        let path_buf = PathBuf::from(path);
+        match run_append(path_buf).err() {
+            Some(e) => println!("{}", e),
+            None => {}
+        }
     } else {
         match run(keep).err() {
             Some(e) => println!("{}", e),
@@ -94,7 +144,7 @@ fn run_file(path: PathBuf, keep: bool) -> Result<(), Box<dyn std::error::Error>>
     }
 
     let file = std::fs::File::open(path)?;
-    let json: Commandos = serde_json::from_reader(file)?;
+    let json: Commands = serde_json::from_reader(file)?;
 
     for cmd in json.commands {
         dotenv::dotenv().ok();
@@ -125,7 +175,7 @@ fn run_file(path: PathBuf, keep: bool) -> Result<(), Box<dyn std::error::Error>>
                 args_vec.push(arg.to_string());
             }
         }
-        run_cmd(cmd.command, args_vec, cmd.envs)?;
+        run_cmd(cmd.cmd, args_vec, cmd.envs)?;
     }
 
     Ok(())
@@ -148,6 +198,33 @@ fn run_init() {
     }
 }
 
+fn run_append(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Enter rev2 command followed by args \nExample: call-method $radiswap swap_token 100,token1 100,token2");
+
+    let mut s = String::new();
+    std::io::stdin().read_line(&mut s)?;
+    let mut arg_vec: Vec<&str> = s.split_whitespace().collect();
+    let cmd = arg_vec.remove(0);
+    println!(
+        "Enter the environment variables for the returned components in the correct order, if any"
+    );
+
+    let mut s = String::new();
+    std::io::stdin().read_line(&mut s)?;
+    let env_vec: Vec<&str> = s.split_whitespace().collect();
+
+    let cmd_command = Command::new(cmd, arg_vec, env_vec);
+
+    let json_file = std::fs::File::open(&path)?;
+    let mut json: Commands = serde_json::from_reader(json_file)?;
+    json.commands.push(cmd_command);
+
+    let json_file = std::fs::File::create(path)?;
+    let ret = serde_json::to_writer_pretty(json_file, &json)?;
+
+    Ok(())
+}
+
 fn run_cmd(
     command: String,
     args: Vec<String>,
@@ -160,10 +237,13 @@ fn run_cmd(
             print!(" {} ", arg);
         }
         print!("\n");
-        res = Command::new("rev2").arg(&command).args(&args).output()?;
+        res = std::process::Command::new("rev2")
+            .arg(&command)
+            .args(&args)
+            .output()?;
     } else {
         println!(">>> {}", command);
-        res = Command::new("rev2").arg(&command).output()?;
+        res = std::process::Command::new("rev2").arg(&command).output()?;
     }
     println!("{}", String::from_utf8_lossy(&res.stdout).to_string());
     println!("{}", String::from_utf8_lossy(&res.stderr).to_string());
@@ -219,89 +299,55 @@ fn append_env(mut env: String, ent: String) -> Result<(), Box<dyn std::error::Er
 }
 
 fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
-    let mut vector: Vec<Commando> = Vec::new();
-    let reset = Commando {
-        command: "reset".to_owned(),
-        args: [].to_vec(),
-        envs: [].to_vec(),
-    };
-    vector.push(reset);
+    let mut commands_vec: Vec<Command> = Vec::new();
 
-    let account = Commando {
-        command: "new-account".to_owned(),
-        args: [].to_vec(),
-        envs: ["account".to_string()].to_vec(),
-    };
-    vector.push(account);
+    commands_vec.push(Command::new_only_command("reset"));
+    commands_vec.push(Command::new_no_args("new-account", ["account"].to_vec()));
 
-    let token1 = Commando {
-        command: "new-resource-fixed".to_owned(),
-        args: [
-            "10000".to_string(),
-            "--name".to_string(),
-            "emunie".to_string(),
-            "--symbol".to_string(),
-            "EMT".to_string(),
-        ]
-        .to_vec(),
-        envs: ["token1".to_string()].to_vec(),
-    };
-    vector.push(token1);
+    commands_vec.push(Command::new(
+        "new-resource-fixed",
+        ["10000", "--name", "emunie", "--symbol", "EMT"].to_vec(),
+        ["token1"].to_vec(),
+    ));
 
-    let token2 = Commando {
-        command: "new-resource-fixed".to_owned(),
-        args: [
-            "10000".to_string(),
-            "--name".to_string(),
-            "gmunie".to_string(),
-            "--symbol".to_string(),
-            "GMT".to_string(),
-        ]
-        .to_vec(),
-        envs: ["token2".to_string()].to_vec(),
-    };
-    vector.push(token2);
+    commands_vec.push(Command::new(
+        "new-resource-fixed",
+        ["10000", "--name", "gmunie", "--symbol", "GMT"].to_vec(),
+        ["token2"].to_vec(),
+    ));
 
-    let publish = Commando {
-        command: "publish".to_owned(),
-        args: [".".to_string()].to_vec(),
-        envs: ["package".to_string()].to_vec(),
-    };
-    vector.push(publish);
+    commands_vec.push(Command::new(
+        "publish",
+        ["."].to_vec(),
+        ["package"].to_vec(),
+    ));
 
-    println!("Enter the arguments for the first function call \nexample: PackageName new 200,$token1 200,$token2 \nDon't use \" or \' !");
+    println!("Enter the arguments for the first function call \nexample: PackageName new 200,$token1 200,$token2 \n No ticks, qoutes or backticks");
     let mut s = String::new();
     std::io::stdin().read_line(&mut s)?;
-    let mut a: Vec<&str> = s.split_whitespace().collect();
-    a.insert(0, "$package");
-
-    let mut arguments_owned: Vec<String> = Vec::new();
-    for i in a {
-        arguments_owned.push(i.to_string());
-    }
+    let mut args_vec: Vec<&str> = s.split_whitespace().collect();
+    args_vec.insert(0, "$package");
 
     println!("Enter the names of the env variables in correct order");
     let mut s = String::new();
     std::io::stdin().read_line(&mut s)?;
-    let e: Vec<&str> = s.split_whitespace().collect();
+    let envs_vec: Vec<&str> = s.split_whitespace().collect();
 
-    let mut envs_owned: Vec<String> = Vec::new();
+    commands_vec.push(Command::new("call-function", args_vec, envs_vec));
 
-    for i in e {
-        envs_owned.push(i.to_string());
-    }
-
-    let first_function = Commando {
-        command: "call-function".to_owned(),
-        args: arguments_owned,
-        envs: envs_owned,
+    let commandos = Commands {
+        commands: commands_vec,
     };
-
-    vector.push(first_function);
-
-    let commandos = Commandos { commands: vector };
 
     let revup = std::fs::File::create("revup.json")?;
     let ret = serde_json::to_writer_pretty(revup, &commandos)?;
     Ok(ret)
+}
+
+fn ret_string_vec(vec: Vec<&str>) -> Vec<String> {
+    let mut owned_vec: Vec<String> = Vec::new();
+    for v in vec {
+        owned_vec.push(v.to_string());
+    }
+    owned_vec
 }
