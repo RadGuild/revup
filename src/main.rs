@@ -43,9 +43,11 @@ impl Command {
         for arg in &self.args {
             print!(" {}", arg);
         }
-        print!("\n With envs:\n");
-        for env in &self.envs {
-            print!("{} ", env);
+        if !self.envs.is_empty() {
+            print!("\n With envs:\n");
+            for env in &self.envs {
+                print!("{} ", env);
+            }
         }
     }
 }
@@ -60,12 +62,7 @@ fn main() {
             .version("v0.0.1")
             .author("author: dRAT3")
             .about(
-                "
-Sets up the rev2 simulator for calling functions instantly, looks for revup.json file
-in the current dir, and runs the rev2 commands in order storing the created entities
-address locations in a dotenv file. Run \">>> source .env\" after running revup and all 
-your environment variables will be active in your shell.
-",
+                "Sets up the rev2 simulator for calling functions instantly, looks for revup.json file in the current dir, and runs the rev2 commands in order storing the created entities address locations in a dotenv file. Run \">>> source .env\" after running revup and all your environment variables will be active in your shell.",
             )
             .arg(
                 Arg::with_name("file")
@@ -174,8 +171,7 @@ fn run_file(path: PathBuf, keep: bool) -> Result<(), Box<dyn std::error::Error>>
     for cmd in json.commands {
         dotenv::dotenv().ok();
         //Replace $ with values from .env //Quick 'n Dirty no idea how this is going to behave on
-        //non utf-8 systems , one big mess, can somebody refactor this and create a proper
-        //function?
+        //non utf-8 systems , can somebody refactor this and create a proper method
         let mut args_vec: Vec<String> = Vec::new();
         for arg in &cmd.args {
             if arg.contains("$") {
@@ -261,15 +257,14 @@ fn run_ls() -> Result<(), Box<dyn std::error::Error>> {
     let json_file = std::fs::File::open("revup.json")?;
     let json: Commands = serde_json::from_reader(json_file)?;
 
+    println!("Command:");
     for command in json.commands {
         command.print();
     }
-
-    dotenv::dotenv().ok();
-    for (key, value) in std::env::vars() {
-        println!("{}={}", key, value);
-    }
-
+    println!("");
+    let dot_env = std::fs::read_to_string(".env")?;
+    println!("---------------------------------------------------------------------");
+    println!(".env: \n{}", dot_env);
     Ok(())
 }
 
@@ -351,7 +346,7 @@ fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
 
     commands_vec.push(Command::new_only_command("reset"));
     commands_vec.push(Command::new_no_args("new-account", ["account"].to_vec()));
-
+    commands_vec.push(Command::new_no_args("new-account", ["account2"].to_vec()));
     commands_vec.push(Command::new(
         "new-resource-fixed",
         ["10000", "--name", "emunie", "--symbol", "EMT"].to_vec(),
