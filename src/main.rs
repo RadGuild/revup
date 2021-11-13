@@ -59,10 +59,10 @@ struct Commands {
 fn main() {
     let matches =
         App::new("revup")
-            .version("v0.0.1")
+            .version("v0.0.2")
             .author("author: dRAT3")
             .about(
-                "Sets up the rev2 simulator for calling functions instantly, looks for revup.json file in the current dir, and runs the rev2 commands in order storing the created entities address locations in a dotenv file. Run \">>> source .env\" after running revup and all your environment variables will be active in your shell.",
+                "Sets up the resim simulator for calling functions instantly, looks for revup.json file in the current dir, and runs the resim commands in order storing the created entities address locations in a dotenv file. Run \">>> source .env\" after running revup and all your environment variables will be active in your shell.",
             )
             .arg(
                 Arg::with_name("file")
@@ -218,7 +218,7 @@ fn run_init() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run_append(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Enter rev2 command followed by args \nExample: call-method $radiswap swap_token 100,token1 100,token2");
+    println!("Enter resim command followed by args \nExample: call-method $radiswap swap_token 100,tokenEMT 100,tokenGMT");
 
     let mut s = String::new();
     std::io::stdin().read_line(&mut s)?;
@@ -280,13 +280,13 @@ fn run_cmd(
             print!(" {} ", arg);
         }
         print!("\n");
-        res = std::process::Command::new("rev2")
+        res = std::process::Command::new("resim")
             .arg(&command)
             .args(&args)
             .output()?;
     } else {
         println!(">>> {}", command);
-        res = std::process::Command::new("rev2").arg(&command).output()?;
+        res = std::process::Command::new("resim").arg(&command).output()?;
     }
     println!("{}", String::from_utf8_lossy(&res.stdout).to_string());
     println!("{}", String::from_utf8_lossy(&res.stderr).to_string());
@@ -348,15 +348,15 @@ fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
     commands_vec.push(Command::new_no_args("new-account", ["account"].to_vec()));
     commands_vec.push(Command::new_no_args("new-account", ["account2"].to_vec()));
     commands_vec.push(Command::new(
-        "new-resource-fixed",
+        "new-token-fixed",
         ["10000", "--name", "emunie", "--symbol", "EMT"].to_vec(),
-        ["token1"].to_vec(),
+        ["tokenEMT"].to_vec(),
     ));
 
     commands_vec.push(Command::new(
-        "new-resource-fixed",
+        "new-token-fixed",
         ["10000", "--name", "gmunie", "--symbol", "GMT"].to_vec(),
-        ["token2"].to_vec(),
+        ["tokenGMT"].to_vec(),
     ));
 
     commands_vec.push(Command::new(
@@ -365,7 +365,7 @@ fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
         ["package"].to_vec(),
     ));
 
-    println!("Enter the arguments for the first function call \nexample: PackageName new 200,$token1 200,$token2 \n No ticks, qoutes or backticks");
+    println!("Enter the arguments for the first function call \nexample: PackageName new 200,$tokenEMT 200,$tokenGMT \n No ticks, qoutes or backticks");
     let mut s = String::new();
     std::io::stdin().read_line(&mut s)?;
     let mut args_vec: Vec<&str> = s.split_whitespace().collect();
