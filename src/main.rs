@@ -319,6 +319,7 @@ fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Erro
         if line.contains(" Component: ")
             || line.contains(" ResourceDef: ")
             || line.contains(" Package: ")
+            || line.contains("Public key:") // special case for new-account
         {
             let entity_vec: Vec<&str> = line.split_whitespace().collect();
             let entity = entity_vec[2].to_string();
@@ -345,8 +346,8 @@ fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
     let mut commands_vec: Vec<Command> = Vec::new();
 
     commands_vec.push(Command::new_only_command("reset"));
-    commands_vec.push(Command::new_no_args("new-account", ["account"].to_vec()));
-    commands_vec.push(Command::new_no_args("new-account", ["account2"].to_vec()));
+    commands_vec.push(Command::new_no_args("new-account", ["account","pubkey"].to_vec()));
+    commands_vec.push(Command::new_no_args("new-account", ["account2","pubkey2"].to_vec()));
     commands_vec.push(Command::new(
         "new-token-fixed",
         ["10000", "--name", "emunie", "--symbol", "EMT"].to_vec(),
