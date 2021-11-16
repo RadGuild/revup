@@ -5,11 +5,12 @@
 First build the executable\
 `cargo build --release`
 
-Then move the binary to your executables folder\
+Then move or copy the binary to your preferred executables folder. For example:\
+`sudo mv target/release/revup ~/.cargo/bin`
+or
 `sudo mv target/release/revup /usr/local/bin`
 
-You should now be able to use `revup` in your terminal, if not open an issue and
-I will help you.
+You should now be able to use `revup` in your terminal, if not open an issue.
 
 ## Usage
 
@@ -42,11 +43,7 @@ to include\
 `revup.json
 .env`
 
-Todo:
-* Update for APE release (DONE but minimally tested)
-* Windows and MacOS support
-* Additional Testing
-* Extensions
-
-License: MIT
+### Going forward:
+Normal maintenace is underway. Feel free to add an issue, comment on issue or even fix an open issue.
+We also have defined some projects outlining future directions. Feel free to contribute in any way.
 
