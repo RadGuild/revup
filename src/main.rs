@@ -169,7 +169,6 @@ fn run_file(path: PathBuf, keep: bool) -> Result<(), Box<dyn std::error::Error>>
     let json: Commands = serde_json::from_reader(file)?;
 
     for cmd in json.commands {
-        dotenv::dotenv().ok();
         //Replace $ with values from .env //Quick 'n Dirty no idea how this is going to behave on
         //non utf-8 systems , can somebody refactor this and create a proper method
         let mut args_vec: Vec<String> = Vec::new();
@@ -180,16 +179,17 @@ fn run_file(path: PathBuf, keep: bool) -> Result<(), Box<dyn std::error::Error>>
                 let substr_arg = &arg[loc..];
                 let find_string = substr_arg.to_string();
 
-                for (key, value) in std::env::vars() {
-                    if key == find_string {
-                        if loc > 0 {
-                            loc -= 1;
-                            let mut final_arg: String = arg[..loc].to_string();
-                            final_arg.push_str(&value);
-                            args_vec.push(final_arg);
-                        } else {
-                            args_vec.push(value);
-                        }
+                //load env vars
+                let dot_env = std::fs::read_to_string(".env")?;
+                let env_lines = dot_env.lines();
+
+                for line in env_lines {
+                    let env_var: Vec<&str> = line.split("=").collect();
+                    if env_var[0] == find_string {
+                        loc -= 1;
+                        let mut final_arg: String = arg[..loc].to_string();
+                        final_arg.push_str(env_var[1]);
+                        args_vec.push(final_arg);
                     }
                 }
             } else {
@@ -319,7 +319,8 @@ fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Erro
         if line.contains(" Component: ")
             || line.contains(" ResourceDef: ")
             || line.contains(" Package: ")
-            || line.contains("Public key:") // special case for new-account
+            || line.contains("Public key:")
+        // special case for new-account
         {
             let entity_vec: Vec<&str> = line.split_whitespace().collect();
             let entity = entity_vec[2].to_string();
@@ -346,8 +347,14 @@ fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
     let mut commands_vec: Vec<Command> = Vec::new();
 
     commands_vec.push(Command::new_only_command("reset"));
-    commands_vec.push(Command::new_no_args("new-account", ["account","pubkey"].to_vec()));
-    commands_vec.push(Command::new_no_args("new-account", ["account2","pubkey2"].to_vec()));
+    commands_vec.push(Command::new_no_args(
+        "new-account",
+        ["account", "pubkey"].to_vec(),
+    ));
+    commands_vec.push(Command::new_no_args(
+        "new-account",
+        ["account2", "pubkey2"].to_vec(),
+    ));
     commands_vec.push(Command::new(
         "new-token-fixed",
         ["10000", "--name", "emunie", "--symbol", "EMT"].to_vec(),
@@ -366,7 +373,7 @@ fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
         ["package"].to_vec(),
     ));
 
-    println!("Enter the arguments for the first function call \nexample: PackageName new 200,$tokenEMT 200,$tokenGMT \n No ticks, qoutes or backticks");
+    println!("Enter the arguments for the first function call \nexample: PackageName new 200,$tokenEMT 200,$tokenGMT \nNo ticks, qoutes or backticks");
     let mut s = String::new();
     std::io::stdin().read_line(&mut s)?;
     let mut args_vec: Vec<&str> = s.split_whitespace().collect();
