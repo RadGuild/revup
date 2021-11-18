@@ -30,18 +30,22 @@ You can now run\
 `revup`
 
 This will execute all the resim commands that are stored in the revup.json file
-and it should've created a .env file that has stored all the variables.
+and it should've created a .env, env.bat and env.ps1 files that have stored all the variables.
 
 You can now run\ 
-`source .env`
+`source .env` (bash)
+`env.bat` (cmd)
+`env.ps1` (PowerShell)
 
-This will make the .env variables usable in your shell, make sure that you re-run
-`source .env` everytime you've run `revup`.
+This will make the variables usable in your shell, make sure that you re-run
+the command everytime you've run `revup`.
 
 When using revup in a project under git source code control you will want to update your .gitignore file
 to include\
 `revup.json
-.env`
+.env
+env.bat
+env.ps1`
 
 ### Going forward:
 Normal maintenace is underway. Feel free to add an issue, comment on issue or even fix an open issue.
