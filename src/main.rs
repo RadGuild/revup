@@ -38,6 +38,7 @@ impl Command {
             envs: envs_owned,
         }
     }
+
     fn print(&self) {
         print!("\nCall:\n{}", self.cmd);
         for arg in &self.args {
@@ -319,8 +320,7 @@ fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Erro
         if line.contains(" Component: ")
             || line.contains(" ResourceDef: ")
             || line.contains(" Package: ")
-            || line.contains("Public key:")
-        // special case for new-account
+            || line.contains("Public key:") // special case for new-account
         {
             let entity_vec: Vec<&str> = line.split_whitespace().collect();
             let entity = entity_vec[2].to_string();
@@ -337,9 +337,16 @@ fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Erro
 
 fn append_env(mut env: String, ent: String) -> Result<(), Box<dyn std::error::Error>> {
     let mut dotenv = std::fs::OpenOptions::new().append(true).open(".env")?;
+    let mut special_case_xrd = false;
     env.push_str("=");
+    if env == "account=" {
+        special_case_xrd = true;
+    }
     env.push_str(&ent);
     env.push_str("\n");
+    if special_case_xrd {
+        env.push_str("tokenXRD=030000000000000000000000000000000000000000000000000004\n"); // hard-coded special case value
+    }
     Ok(dotenv.write_all(env.as_bytes())?)
 }
 
@@ -373,7 +380,7 @@ fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
         ["package"].to_vec(),
     ));
 
-    println!("Enter the arguments for the first function call \nexample: PackageName new 200,$tokenEMT 200,$tokenGMT \nNo ticks, qoutes or backticks");
+    println!("Enter the arguments for the first function call \nexample: BlueprintName new arg1 arg2 \n(No ticks, quotes or backticks)");
     let mut s = String::new();
     std::io::stdin().read_line(&mut s)?;
     let mut args_vec: Vec<&str> = s.split_whitespace().collect();
