@@ -358,9 +358,12 @@ fn run_cmd(
 
     if command == "reset".to_string() {
         // reset the .env file
-        let _dot_env = std::fs::File::create(".env")?;
+        let mut dot_env = std::fs::File::create(".env")?;
+        let env: String = "tokenXRD=030000000000000000000000000000000000000000000000000004\n".to_string();
+        Ok(dot_env.write_all(env.as_bytes())?)
+    } else {
+        Ok(())   
     }
-    Ok(())
 }
 
 fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Error>> {
@@ -397,16 +400,9 @@ fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Erro
 
 fn append_env(mut env: String, ent: String) -> Result<(), Box<dyn std::error::Error>> {
     let mut dotenv = std::fs::OpenOptions::new().append(true).open(".env")?;
-    let mut special_case_xrd = false;
     env.push_str("=");
-    if env == "account=" {
-        special_case_xrd = true;
-    }
     env.push_str(&ent);
     env.push_str("\n");
-    if special_case_xrd {
-        env.push_str("tokenXRD=030000000000000000000000000000000000000000000000000004\n"); // hard-coded special case value
-    }
     Ok(dotenv.write_all(env.as_bytes())?)
 }
 
