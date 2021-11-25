@@ -1,8 +1,11 @@
 extern crate clap;
 use clap::{App, Arg, ArgGroup};
 use serde::{Deserialize, Serialize};
+use std::fs::File;
+use std::io::{prelude::*, BufReader};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
 
 #[derive(Serialize, Deserialize)]
 struct Command {
@@ -72,6 +75,13 @@ fn main() {
                     .takes_value(true)
                     .help("Use a custom json file"),
             )
+            .arg(
+                Arg::with_name("rev")
+                    .short("r")
+                    .long("rev")
+                    .takes_value(true)
+                    .help("Use a .rev style file"),
+            )
             .arg(Arg::with_name("init")
                 .short("i")
                 .long("init")
@@ -110,6 +120,12 @@ fn main() {
     if matches.is_present("file") {
         let path = Path::new(matches.value_of("file").unwrap());
         match run_file(path.to_path_buf(), keep).err() {
+            Some(e) => println!("Critical error, aborting \n{}", e),
+            None => {}
+        }
+    } else if matches.is_present("rev") {
+        let path = Path::new(matches.value_of("rev").unwrap());
+        match run_rev_file(path.to_path_buf()).err() {
             Some(e) => println!("Critical error, aborting \n{}", e),
             None => {}
         }
@@ -170,34 +186,44 @@ fn run_file(path: PathBuf, keep: bool) -> Result<(), Box<dyn std::error::Error>>
     let json: Commands = serde_json::from_reader(file)?;
 
     for cmd in json.commands {
-        //Replace $ with values from .env //Quick 'n Dirty no idea how this is going to behave on
-        //non utf-8 systems , can somebody refactor this and create a proper method
-        let mut args_vec: Vec<String> = Vec::new();
-        for arg in &cmd.args {
-            if arg.contains("$") {
-                let mut loc = arg.find("$").unwrap();
-                loc += 1;
-                let substr_arg = &arg[loc..];
-                let find_string = substr_arg.to_string();
+        run_cmd(cmd.cmd, cmd.args, cmd.envs)?;
+    }
 
-                //load env vars
-                let dot_env = std::fs::read_to_string(".env")?;
-                let env_lines = dot_env.lines();
+    Ok(())
+}
 
-                for line in env_lines {
-                    let env_var: Vec<&str> = line.split("=").collect();
-                    if env_var[0] == find_string {
-                        loc -= 1;
-                        let mut final_arg: String = arg[..loc].to_string();
-                        final_arg.push_str(env_var[1]);
-                        args_vec.push(final_arg);
+fn run_rev_file(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let lines = lines_from_file(path);
+    for line in lines {
+        // println!("{:?}", line);
+        let vstr: Vec<&str> = line.splitn(2, "//").collect();
+        // println!("{}", vstr[0]);
+        let l = vstr[0].trim();
+        if l.len() > 0 {
+            println!("{}", l);
+            let vstr2: Vec<&str> = l.splitn(2, "->").collect();
+            // First extract the command string and the command args, if any 
+            let v: Vec<&str> = vstr2[0].split(' ').collect();
+            let mut args: Vec<String> = Vec::new();
+            let mut envars: Vec<String> = Vec::new();
+
+            let cmd: String = v[0].to_string();
+            for s in &v[1..] {
+                if s.len() > 0 {
+                    args.push(s.to_string());
+                }
+            }
+            if vstr2.len() > 1 {
+                // We also have envvars to extract
+                let ev: Vec<&str> = vstr2[1].split(' ').collect();
+                for es in &ev[..] {
+                    if es.len() > 0 {
+                        envars.push(es.to_string());
                     }
                 }
-            } else {
-                args_vec.push(arg.to_string());
             }
+            run_cmd(cmd, args, envars)?;
         }
-        run_cmd(cmd.cmd, args_vec, cmd.envs)?;
     }
 
     Ok(())
@@ -274,16 +300,45 @@ fn run_cmd(
     args: Vec<String>,
     envs: Vec<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // First deal with envvar substitutions
+    // Replace $ with values from .env //Quick 'n Dirty no idea how this is going to behave on
+    // non utf-8 systems , can somebody refactor this and create a proper method
+    let mut args_vec: Vec<String> = Vec::new();
+    for arg in args {
+        if arg.contains("$") {
+            let mut loc = arg.find("$").unwrap();
+            loc += 1;
+            let substr_arg = &arg[loc..];
+            let find_string = substr_arg.to_string();
+
+            //load env vars
+            let dot_env = std::fs::read_to_string(".env")?;
+            let env_lines = dot_env.lines();
+
+            for line in env_lines {
+                let env_var: Vec<&str> = line.split("=").collect();
+                if env_var[0] == find_string {
+                    loc -= 1;
+                    let mut final_arg: String = arg[..loc].to_string();
+                    final_arg.push_str(env_var[1]);
+                    args_vec.push(final_arg);
+                }
+            }
+        } else {
+            args_vec.push(arg.to_string());
+        }
+    }
+
     let res;
-    if !args.is_empty() {
+    if !args_vec.is_empty() {
         print!(">>> {}", command);
-        for arg in &args {
+        for arg in &args_vec {
             print!(" {} ", arg);
         }
         print!("\n");
         res = std::process::Command::new("resim")
             .arg(&command)
-            .args(&args)
+            .args(&args_vec)
             .output()?;
     } else {
         println!(">>> {}", command);
@@ -299,6 +354,11 @@ fn run_cmd(
             println!("{}={}", env_it, ent_it);
             let _res = append_env(env_it.to_string(), ent_it.to_string())?;
         }
+    }
+
+    if command == "reset".to_string() {
+        // reset the .env file
+        let _dot_env = std::fs::File::create(".env")?;
     }
     Ok(())
 }
@@ -408,4 +468,12 @@ fn ret_string_vec(vec: Vec<&str>) -> Vec<String> {
         owned_vec.push(v.to_string());
     }
     owned_vec
+}
+
+fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
+    let file = File::open(filename).expect("no such file");
+    let buf = BufReader::new(file);
+    buf.lines()
+        .map(|l| l.expect("Could not parse line"))
+        .collect()
 }
