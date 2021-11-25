@@ -48,7 +48,8 @@ Now you can quickly do your setup for either constructor using:\
 `revup -f revup_other.json`
 
 ### Power User Mode
-Brand new for revup is a new command file format that you can create yourself. Simply review this example file to get the basic idea:\
+Brand new for revup is a new command file format that you can create yourself. Simply review this example file to get the basic idea:
+
 ```
 // Revup command file
 // Double slash comments are allowed and ignored.
@@ -78,7 +79,8 @@ Hopefully that is clear enough for power users. More details are coming soon.
 
 ### gitignore
 When using revup in a project under git source code control you will want to update your .gitignore file
-to include\
+to include:
+
 ```
 revup*.json
 *.rev
