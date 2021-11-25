@@ -63,52 +63,35 @@ struct Commands {
 fn main() {
     let matches =
         App::new("revup")
-            .version("v0.0.2")
+            .version("v0.0.9")
             .author("author: dRAT3")
             .about(
                 "Sets up the resim simulator for calling functions instantly, looks for revup.json file in the current dir, and runs the resim commands in order storing the created entities address locations in a dotenv file. Run \">>> source .env\" after running revup and all your environment variables will be active in your shell.",
             )
-            .arg(
-                Arg::with_name("file")
-                    .short("f")
-                    .long("file")
-                    .takes_value(true)
-                    .help("Use a custom json file"),
-            )
-            .arg(
-                Arg::with_name("rev")
-                    .short("r")
-                    .long("rev")
-                    .takes_value(true)
-                    .help("Use a .rev style file"),
-            )
-            .arg(Arg::with_name("init")
+            .arg(Arg::with_name("json_file")
+                .short("f")
+                .long("file")
+                .takes_value(true)
+                .help("Use a custom json file"),
+            ).arg(Arg::with_name("rev_file")
+                .short("r")
+                .long("rev")
+                .takes_value(true)
+                .help("Use a custom rev file (see README)"),
+            ).arg(Arg::with_name("init")
                 .short("i")
                 .long("init")
-                .help(
-                "Creates a default config file in the working directory",
-            ))
-            .arg(Arg::with_name("keep")
+                .help("Creates a default revup.json config file in the working directory"),
+            ).arg(Arg::with_name("keep")
                 .short("k")
                 .long("keep")
-                .help("Keeps the environment variables in the .env, useful when working with multiple revup.json files"))
-            .arg(Arg::with_name("append")
-                .short("a")
-                .long("append")
-                .help("Appends the revup.json file with custom command, to write to a different file append with filename")
-                .takes_value(true))
-            .arg(Arg::with_name("pop")
-                .short("p")
-                .long("pop")
-                .help("Removes the last command in the revup.json file, to write to a different file append with filename")
-                .takes_value(true))
-            .arg(Arg::with_name("list")
+                .help("Keeps the environment variables in the .env, useful when working with multiple revup.json files"),
+            ).arg(Arg::with_name("list")
                 .long("ls")
-                .help("Lists all calls and envs"))
-            .group(
-                ArgGroup::with_name("group")
-                    .args(&["file", "init", "append", "pop", "list"])
-                    .required(false),
+                .help("Lists all calls and envs"),
+            ).group(ArgGroup::with_name("group")
+                .args(&["json_file", "init", "list"])
+                .required(false),
             )
             .get_matches();
 
@@ -117,34 +100,20 @@ fn main() {
         keep = true;
     }
 
-    if matches.is_present("file") {
-        let path = Path::new(matches.value_of("file").unwrap());
+    if matches.is_present("json_file") {
+        let path = Path::new(matches.value_of("json_file").unwrap());
         match run_file(path.to_path_buf(), keep).err() {
             Some(e) => println!("Critical error, aborting \n{}", e),
             None => {}
         }
-    } else if matches.is_present("rev") {
-        let path = Path::new(matches.value_of("rev").unwrap());
+    } else if matches.is_present("rev_file") {
+        let path = Path::new(matches.value_of("rev_file").unwrap());
         match run_rev_file(path.to_path_buf()).err() {
             Some(e) => println!("Critical error, aborting \n{}", e),
             None => {}
         }
     } else if matches.is_present("init") {
         match run_init().err() {
-            Some(e) => println!("Critical error, aborting \n{}", e),
-            None => {}
-        }
-    } else if matches.is_present("append") {
-        let path = matches.value_of("append").unwrap_or("revup.json");
-        let path_buf = PathBuf::from(path);
-        match run_append(path_buf).err() {
-            Some(e) => println!("Critical error, aborting \n{}", e),
-            None => {}
-        }
-    } else if matches.is_present("append") {
-        let path = matches.value_of("append").unwrap_or("revup.json");
-        let path_buf = PathBuf::from(path);
-        match run_pop(path_buf).err() {
             Some(e) => println!("Critical error, aborting \n{}", e),
             None => {}
         }
@@ -241,42 +210,6 @@ fn run_init() -> Result<(), Box<dyn std::error::Error>> {
         println!("revup.json file already exists remove it first, skipping");
     }
 
-    Ok(())
-}
-
-fn run_append(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Enter resim command followed by args \nExample: call-method $radiswap swap_token 100,tokenEMT 100,tokenGMT");
-
-    let mut s = String::new();
-    std::io::stdin().read_line(&mut s)?;
-    let mut arg_vec: Vec<&str> = s.split_whitespace().collect();
-    let cmd = arg_vec.remove(0);
-    println!(
-        "Enter the environment variables for the returned components in the correct order, if any"
-    );
-
-    let mut s = String::new();
-    std::io::stdin().read_line(&mut s)?;
-    let env_vec: Vec<&str> = s.split_whitespace().collect();
-
-    let cmd_command = Command::new(cmd, arg_vec, env_vec);
-
-    let json_file = std::fs::File::open(&path)?;
-    let mut json: Commands = serde_json::from_reader(json_file)?;
-    json.commands.push(cmd_command);
-
-    let json_file = std::fs::File::create(path)?;
-    let ret = serde_json::to_writer_pretty(json_file, &json)?;
-
-    Ok(ret)
-}
-
-fn run_pop(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    let json_file = std::fs::File::open(&path)?;
-    let mut json: Commands = serde_json::from_reader(json_file)?;
-    let len = json.commands.len();
-    let rm = json.commands.remove(len);
-    println!("Success, removed {}", rm.cmd);
     Ok(())
 }
 
