@@ -49,23 +49,25 @@ Now you can quickly do your setup for either constructor using:\
 
 ### Power User Mode
 Brand new for revup is a new command file format that you can create yourself. Simply review this example file to get the basic idea:\
-'// Revup command file`
-`// Double slash comments are allowed and ignored.`
-`// Blank lines are also ignored.`
-``
-`reset // If revup sees you calling reset, then it clears your _.env_ file.`
-`new-account -> account pubkey`
-`new-account -> account2 pubkey2`
-``
-`new-token-fixed 10000 --name emunie --symbol EMT -> tokenEMT`
-`new-token-fixed 10000 --name gmunie --symbol GMT -> tokenGMT`
-``
-`publish . -> package // we can allow comments here as well`
-``
-`// Now we call the function.`
-`// (We only allow envvars that are defined previously in the session.)`
-``
-`call-function $package CandyShop new -> component`
+```
+// Revup command file
+// Double slash comments are allowed and ignored.
+// Blank lines are also ignored.
+
+reset // If revup sees you calling reset, then it clears your _.env_ file.
+new-account -> account pubkey
+new-account -> account2 pubkey2
+
+new-token-fixed 10000 --name emunie --symbol EMT -> tokenEMT
+new-token-fixed 10000 --name gmunie --symbol GMT -> tokenGMT
+
+publish . -> package // we can allow comments here as well
+
+// Now we call the function.
+// (We only allow envvars that are defined previously in the session.)
+
+call-function $package CandyShop new -> component
+```
 
 You run a command file like this:\
 `revup -r CandyShop.rev`
@@ -77,9 +79,11 @@ Hopefully that is clear enough for power users. More details are coming soon.
 ### gitignore
 When using revup in a project under git source code control you will want to update your .gitignore file
 to include\
-`revup*.json`
-`*.rev`
-`.env`
+```
+revup*.json
+*.rev
+.env
+```
 
 ### Going forward:
 Normal maintenace is underway. Feel free to add an issue, comment on issue or even fix an open issue.
