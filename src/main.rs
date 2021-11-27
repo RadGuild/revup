@@ -165,26 +165,28 @@ fn run_rev_file(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     let lines = lines_from_file(path);
     for line in lines {
         // println!("{:?}", line);
-        let vstr: Vec<&str> = line.splitn(2, "//").collect();
+        let rawstr: Vec<&str> = line.splitn(2, "//").collect();
         // println!("{}", vstr[0]);
-        let l = vstr[0].trim();
+        let l = rawstr[0].trim();
         if l.len() > 0 {
             println!("{}", l);
-            let vstr2: Vec<&str> = l.splitn(2, "->").collect();
+            let ca_e_str: Vec<&str> = l.splitn(2, " -> ").collect();
             // First extract the command string and the command args, if any 
-            let v: Vec<&str> = vstr2[0].split(' ').collect();
+            let c_a_str: Vec<&str> = ca_e_str[0].splitn(2, ' ').collect();
+            let cmd: String = c_a_str[0].to_string();
             let mut args: Vec<String> = Vec::new();
             let mut envars: Vec<String> = Vec::new();
 
-            let cmd: String = v[0].to_string();
-            for s in &v[1..] {
-                if s.len() > 0 {
-                    args.push(s.to_string());
+            if c_a_str.len() > 1 {
+                let arg_string = c_a_str[1].trim().to_string();
+                if arg_string.len() > 0 {
+                    args = args_from_string(arg_string);
                 }
             }
-            if vstr2.len() > 1 {
+            
+            if ca_e_str.len() > 1 {
                 // We also have envvars to extract
-                let ev: Vec<&str> = vstr2[1].split(' ').collect();
+                let ev: Vec<&str> = ca_e_str[1].split(' ').collect();
                 for es in &ev[..] {
                     if es.len() > 0 {
                         envars.push(es.to_string());
@@ -405,4 +407,26 @@ fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
     buf.lines()
         .map(|l| l.expect("Could not parse line"))
         .collect()
+}
+
+fn args_from_string(this_string: String) -> Vec<String> {
+    let mut result: Vec<&str> = Vec::new();
+    let top_split: Vec<&str> = this_string.split('"').collect();
+    let mut quoted = false;
+    for section in top_split {
+        if quoted == false {
+            let words: Vec<&str> = section.split_whitespace().collect();
+            for w in words {
+                let word = w.trim();
+                if word.len() > 0 {
+                    result.push(word);
+                }
+            }
+            quoted = true;
+        } else {
+            result.push(section);
+            quoted = false;
+        }
+    }
+    ret_string_vec(result)
 }
