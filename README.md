@@ -1,7 +1,9 @@
 # revup
 
 ## Install
+
 ### Linux
+
 First build the executable\
 `cargo build --release`
 
@@ -12,6 +14,7 @@ Then move or copy the binary to your preferred executables folder. For example:\
 You should now be able to use `revup --help` in your terminal. If not, open an issue.
 
 ## Usage
+
 Make sure you are in the root folder of your scrypto project and run\
 `revup -i`
 
@@ -35,7 +38,20 @@ You can now run\
 This will make the .env variables usable in your shell, make sure that you re-run
 `source .env` again after each time that you run `revup`.
 
+### Epoch
+
+View the current epoch:
+
+`revup --epoch` or\
+`revup -e`
+
+Increment the epoch by a given value:
+
+`revup --epoch 10` or\
+`revup -e 10`
+
 ### Advanced Usage
+
 If your blueprint has multiple constructors then you will want to make multiple `revup.json` config files.
 After you make the first, rename it to something like:\
 `mv revup.json revup_new.json`
@@ -48,6 +64,7 @@ Now you can quickly do your setup for either constructor using:\
 `revup -f revup_other.json`
 
 ### Power User Mode
+
 Brand new for revup is a new command file format that you can create yourself. Simply review this example file to get the basic idea:
 
 ```
@@ -78,6 +95,7 @@ Your command file can have any name but I recommend using the _.rev_ suffix.
 Hopefully that is clear enough for power users. More details are coming soon.
 
 ### gitignore
+
 When using revup in a project under git source code control you will want to update your .gitignore file
 to include:
 
@@ -88,5 +106,6 @@ revup*.json
 ```
 
 ### Going forward:
+
 Normal maintenace is underway. Feel free to add an issue, comment on issue or even fix an open issue.
 We also have defined some projects outlining future directions. Feel free to contribute in any way.

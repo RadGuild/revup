@@ -63,7 +63,7 @@ struct Commands {
 fn main() {
     let matches =
         App::new("revup")
-            .version("v0.0.9")
+            .version("v0.0.10")
             .author("author: dRAT3")
             .about(
                 "Sets up the resim simulator for calling functions instantly, looks for revup.json file in the current dir, and runs the resim commands in order storing the created entities address locations in a dotenv file. Run \">>> source .env\" after running revup and all your environment variables will be active in your shell.",
@@ -89,6 +89,13 @@ fn main() {
             ).arg(Arg::with_name("list")
                 .long("ls")
                 .help("Lists all calls and envs"),
+            ).arg(Arg::with_name("epoch")
+                .short("e")
+                .long("epoch")
+                .takes_value(true)
+                .min_values(0)
+                .value_name("increment")
+                .help("Increases the epoch by the <increment> or if no <increment> value given displays the current epoch"),
             ).group(ArgGroup::with_name("group")
                 .args(&["json_file", "init", "list"])
                 .required(false),
@@ -119,6 +126,12 @@ fn main() {
         }
     } else if matches.is_present("list") {
         match run_ls().err() {
+            Some(e) => println!("Critical error, aborting \n{}", e),
+            None => {}
+        }
+    } else if matches.is_present("epoch") {
+        let epoch_increment = matches.value_of("epoch");
+        match run_epoch(epoch_increment).err() {
             Some(e) => println!("Critical error, aborting \n{}", e),
             None => {}
         }
@@ -228,6 +241,41 @@ fn run_ls() -> Result<(), Box<dyn std::error::Error>> {
     println!("---------------------------------------------------------------------");
     println!(".env: \n{}", dot_env);
     Ok(())
+}
+
+fn run_epoch(epoch_increment: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+    let res = std::process::Command::new("resim").arg("show-configs").output()?;
+    let stdout = String::from_utf8_lossy(&res.stdout);
+    let current_epoch_line = stdout.lines()
+        .nth(1)
+        .unwrap();
+    let current_epoch = current_epoch_line.trim()
+        .split(" ")
+        .last()
+        .unwrap();
+
+    match epoch_increment {
+        Some(value) => {
+            // increment the epoch
+            let current = current_epoch.to_string().parse::<i32>()?;
+            let increment = value.parse::<i32>()?;
+            let new_epoch = current + increment;
+
+            println!("Attempting to update epoch from {} to {}", current, new_epoch);
+            let res = std::process::Command::new("resim")
+                .args(["set-current-epoch", &new_epoch.to_string()])
+                .output()?;
+            println!("{}", String::from_utf8_lossy(&res.stdout).to_string().trim());
+            println!("{}", String::from_utf8_lossy(&res.stderr).to_string());
+
+            Ok(())
+        },
+        None => {
+            // print the epoch
+            println!("Current epoch: {}", current_epoch);
+            Ok(())
+        }
+    }
 }
 
 fn run_cmd(
