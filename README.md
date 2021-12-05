@@ -1,5 +1,7 @@
 # revup
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## Install
 
 ### Linux
@@ -111,6 +113,7 @@ Normal maintenace is underway. Feel free to add, comment upon or even fix an ope
 
 We also have defined some projects outlining future directions. To reward our developers and
 help us move forward with our plans. you may send a donation of XRD to:
+
 ```
 rdx1qspk7l8jfqmafwfcpzhx25p3qczj0nczqd9yvaux4892lrw2xgksnfgmkkr69
 ```
