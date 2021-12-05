@@ -63,8 +63,8 @@ struct Commands {
 fn main() {
     let matches =
         App::new("revup")
-            .version("v0.0.10")
-            .author("author: dRAT3")
+            .version("v0.2.0")
+            .author("author: RadGuild")
             .about(
                 "Sets up the resim simulator for calling functions instantly, looks for revup.json file in the current dir, and runs the resim commands in order storing the created entities address locations in a dotenv file. Run \">>> source .env\" after running revup and all your environment variables will be active in your shell.",
             )
@@ -206,7 +206,15 @@ fn run_rev_file(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-            run_cmd(cmd, args, envars)?;
+            if cmd != "-e" {
+                run_cmd(cmd, args, envars)?;
+            } else {
+                if c_a_str.len() > 1 {
+                    run_epoch(Some(c_a_str[1]))?;
+                } else {
+                    run_epoch(None)?;
+                }
+            }
         }
     }
 
