@@ -1,5 +1,5 @@
 extern crate clap;
-use clap::{App, Arg, ArgGroup};
+use clap::{App, Arg, ArgGroup, crate_version};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{prelude::*};
@@ -62,7 +62,7 @@ struct Commands {
 fn main() {
     let matches =
         App::new("revup")
-            .version("v0.2.0")
+            .version(crate_version!())
             .author("author: RadGuild")
             .about(
                 "Sets up the resim simulator for calling functions instantly, looks for revup.json file in the current dir, and runs the resim commands in order storing the created entities address locations in a dotenv file. Run \">>> source .env\" after running revup and all your environment variables will be active in your shell.",
