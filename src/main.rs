@@ -2,8 +2,7 @@ extern crate clap;
 use clap::{App, Arg, ArgGroup};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::{prelude::*, BufReader};
-use std::io::Write;
+use std::io::{prelude::*};
 use std::path::{Path, PathBuf};
 
 
@@ -77,7 +76,7 @@ fn main() {
                 .short("r")
                 .long("rev")
                 .takes_value(true)
-                .help("Use a custom rev file (see README)"),
+                .help("Use a custom rev file or - for stdin"),
             ).arg(Arg::with_name("init")
                 .short("i")
                 .long("init")
@@ -95,7 +94,7 @@ fn main() {
                 .takes_value(true)
                 .min_values(0)
                 .value_name("increment")
-                .help("Increases the epoch by the <increment> or if no <increment> value given displays the current epoch"),
+                .help("Increases the epoch by <increment>. If no <increment>, displays the current epoch"),
             ).group(ArgGroup::with_name("group")
                 .args(&["json_file", "init", "list"])
                 .required(false),
@@ -114,8 +113,13 @@ fn main() {
             None => {}
         }
     } else if matches.is_present("rev_file") {
-        let path = Path::new(matches.value_of("rev_file").unwrap());
-        match run_rev_file(path.to_path_buf()).err() {
+        let filename = matches.value_of("rev_file").unwrap();
+        // println!("rev file:|{}|", filename);
+        let rdr: Box<dyn std::io::Read> = match filename {
+            "-" => Box::new(std::io::stdin()),
+            _ => Box::new(File::open(filename).expect("no such file")),
+        };
+        match run_rev_file(rdr).err() {
             Some(e) => println!("Critical error, aborting \n{}", e),
             None => {}
         }
@@ -174,15 +178,20 @@ fn run_file(path: PathBuf, keep: bool) -> Result<(), Box<dyn std::error::Error>>
     Ok(())
 }
 
-fn run_rev_file(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    let lines = lines_from_file(path);
+fn run_rev_file(mut reader: Box<dyn std::io::Read>) -> Result<(), Box<dyn std::error::Error>> {
+    let mut all_text = String::new();
+    match reader.read_to_string(&mut all_text).err() {
+        Some(e) => println!("Error reading input, aborting \n{}", e),
+        None => {}
+    };
+    let lines = all_text.split('\n');
     for line in lines {
         // println!("{:?}", line);
         let rawstr: Vec<&str> = line.splitn(2, "//").collect();
         // println!("{}", vstr[0]);
         let l = rawstr[0].trim();
         if l.len() > 0 {
-            println!("{}", l);
+            // println!("{}", l);
             if l.starts_with("#!") {
                 continue;
             }
@@ -460,6 +469,7 @@ fn ret_string_vec(vec: Vec<&str>) -> Vec<String> {
     owned_vec
 }
 
+/*
 fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
     let file = File::open(filename).expect("no such file");
     let buf = BufReader::new(file);
@@ -467,6 +477,7 @@ fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
         .map(|l| l.expect("Could not parse line"))
         .collect()
 }
+*/
 
 fn args_from_string(this_string: String) -> Vec<String> {
     let mut result: Vec<&str> = Vec::new();
