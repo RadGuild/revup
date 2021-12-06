@@ -183,6 +183,9 @@ fn run_rev_file(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         let l = rawstr[0].trim();
         if l.len() > 0 {
             println!("{}", l);
+            if l.starts_with("#!") {
+                continue;
+            }
             let ca_e_str: Vec<&str> = l.splitn(2, " -> ").collect();
             // First extract the command string and the command args, if any 
             let c_a_str: Vec<&str> = ca_e_str[0].splitn(2, ' ').collect();
