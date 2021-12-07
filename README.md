@@ -109,7 +109,7 @@ revup*.json
 
 ### Going forward:
 
-Normal maintenace is underway. Feel free to add, comment upon or even fix an open issue.
+Normal maintenance is underway. Feel free to add, comment upon or even fix an open issue.
 
 We also have defined some projects outlining future directions. To reward our developers and
 help us move forward with our plans. you may send a donation of XRD to:
