@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{prelude::*};
 use std::path::{Path, PathBuf};
+use simple_server::Server;
 
+const PORT: &str = "7746";
+const IP: &str = "127.0.0.1";
 
 #[derive(Serialize, Deserialize)]
 struct Command {
@@ -85,6 +88,10 @@ fn main() {
                 .short("k")
                 .long("keep")
                 .help("Keeps the environment variables in the .env, useful when working with multiple revup.json files"),
+            ).arg(Arg::with_name("spin")
+                .short("s")
+                .long("spin")
+                .help("start server that interacts with sim via resim. Can combine with -r to init the server state"),
             ).arg(Arg::with_name("list")
                 .long("ls")
                 .help("Lists all calls and envs"),
@@ -121,7 +128,14 @@ fn main() {
         };
         match run_rev_file(rdr).err() {
             Some(e) => println!("Critical error, aborting \n{}", e),
-            None => {}
+            None => {
+                if matches.is_present("spin") {
+                    match run_server().err() {
+                        Some(e) => println!("Critical server error, aborting \n{}", e),
+                        None => {}
+                    }
+                }
+            }
         }
     } else if matches.is_present("init") {
         match run_init().err() {
@@ -137,6 +151,11 @@ fn main() {
         let epoch_increment = matches.value_of("epoch");
         match run_epoch(epoch_increment).err() {
             Some(e) => println!("Critical error, aborting \n{}", e),
+            None => {}
+        }
+    } else if matches.is_present("spin") {
+        match run_server().err() {
+            Some(e) => println!("Critical server error, aborting \n{}", e),
             None => {}
         }
     } else {
@@ -296,6 +315,16 @@ fn run_epoch(epoch_increment: Option<&str>) -> Result<(), Box<dyn std::error::Er
             Ok(())
         }
     }
+}
+
+fn run_server() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Server listening on port {}", PORT);
+    let server = Server::new(|request, mut response|{
+        println!("request received: {} {}", request.method(), request.uri());
+        Ok(response.body(std::fs::read_to_string(".env")?.into_bytes())?)
+    });
+
+    server.listen(IP, PORT);
 }
 
 fn run_cmd(
