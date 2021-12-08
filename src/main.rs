@@ -5,6 +5,8 @@ use std::fs::File;
 use std::io::{prelude::*};
 use std::path::{Path, PathBuf};
 use simple_server::{Method, Server, StatusCode};
+use percent_encoding::percent_decode;
+// use std::str::Utf8Error;
 
 const PORT: &str = "7746";
 const IP: &str = "127.0.0.1";
@@ -222,9 +224,10 @@ fn run_rev_file(mut reader: Box<dyn std::io::Read>) -> Result<(), Box<dyn std::e
             let mut envars: Vec<String> = Vec::new();
 
             if c_a_str.len() > 1 {
-                let arg_string = c_a_str[1].trim().to_string();
+                let arg_string = c_a_str[1].trim();
                 if arg_string.len() > 0 {
-                    args = args_from_string(arg_string);
+                    let str_args: Vec<&str> = args_from_string(arg_string);
+                    args = ret_string_vec(str_args);
                 }
             }
             
@@ -325,10 +328,30 @@ fn run_server() -> Result<(), Box<dyn std::error::Error>> {
             &Method::GET => {
                 let uri: String = request.uri().to_string();
                 if uri.starts_with("/rev/") {
-                    let command_str: String = uri[5..].to_string();
-                    Ok(response.body(command_str.into_bytes())?)
-                } else {
+                    let iter = percent_decode(&uri[5..].as_bytes());
+                    match iter.decode_utf8() {
+                        Ok(decoded) => {
+                            let cmd: Command = get_command(&decoded);
+                            match run_cmd(cmd.cmd, cmd.args, cmd.envs) {
+                                Ok(out) => {
+                                    Ok(response.body(out.into_bytes())?)
+                                }
+                                Err(_e) => {
+                                    response.status(StatusCode::BAD_REQUEST);
+                                    Ok(response.body(b"<h1>404</h1><p>Bad Request</p>".to_vec())?)
+                                }
+                            }
+                        }
+                        Err(_e) => {
+                            response.status(StatusCode::BAD_REQUEST);
+                            Ok(response.body(b"<h1>404</h1><p>Bad Request</p>".to_vec())?)
+                        }
+                    }
+                } else if uri.starts_with("/env/") {
                     Ok(response.body(std::fs::read_to_string(".env")?.into_bytes())?)
+                } else{
+                    response.status(StatusCode::BAD_REQUEST);
+                    Ok(response.body(b"<h1>404</h1><p>Bad Request</p>".to_vec())?)
                 }
             }
             _ => {
@@ -345,10 +368,11 @@ fn run_cmd(
     command: String,
     args: Vec<String>,
     envs: Vec<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<String, Box<dyn std::error::Error>> {
     // First deal with envvar substitutions
     // Replace $ with values from .env //Quick 'n Dirty no idea how this is going to behave on
     // non utf-8 systems , can somebody refactor this and create a proper method
+    let mut results_vec: Vec<String> = Vec::new();
     let mut args_vec: Vec<String> = Vec::new();
     for arg in args {
         if arg.contains("$") {
@@ -390,15 +414,21 @@ fn run_cmd(
         println!(">>> {}", command);
         res = std::process::Command::new("resim").arg(&command).output()?;
     }
-    println!("{}", String::from_utf8_lossy(&res.stdout).to_string());
-    println!("{}", String::from_utf8_lossy(&res.stderr).to_string());
+    let std_out: String = String::from_utf8_lossy(&res.stdout).to_string();
+    results_vec.push( std_out.clone() );
+    let std_err: String = String::from_utf8_lossy(&res.stderr).to_string();
+    results_vec.push( std_err);
 
+    println!("{}", results_vec.join("\n"));
+ 
     if !envs.is_empty() {
-        let entities = walk_entities(String::from_utf8_lossy(&res.stdout).to_string())?;
+        let entities = walk_entities(std_out)?;
 
         for (ent_it, env_it) in entities.iter().zip(envs.iter()) {
-            println!("{}={}", env_it, ent_it);
+            let env_str: String = format!("{}={}", env_it, ent_it);
+            println!("{}", env_str);
             let _res = append_env(env_it.to_string(), ent_it.to_string())?;
+            results_vec.push( env_str );
         }
     }
 
@@ -406,10 +436,12 @@ fn run_cmd(
         // reset the .env file
         let mut dot_env = std::fs::File::create(".env")?;
         let env: String = "tokenXRD=030000000000000000000000000000000000000000000000000004\n".to_string();
-        Ok(dot_env.write_all(env.as_bytes())?)
-    } else {
-        Ok(())   
-    }
+        dot_env.write_all(env.as_bytes())?;
+        results_vec.push("reset accomplished".to_string());
+        results_vec.push(env);
+    };
+    let result: String = results_vec.join("\n");
+    Ok(result)
 }
 
 fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Error>> {
@@ -522,7 +554,7 @@ fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
 }
 */
 
-fn args_from_string(this_string: String) -> Vec<String> {
+fn args_from_string(this_string: &str) -> Vec<&str> {
     let mut result: Vec<&str> = Vec::new();
     let top_split: Vec<&str> = this_string.split('"').collect();
     let mut quoted = false;
@@ -541,5 +573,34 @@ fn args_from_string(this_string: String) -> Vec<String> {
             quoted = false;
         }
     }
-    ret_string_vec(result)
+    result
+}
+
+fn get_command(line: &str) -> Command {
+    let ca_e_str: Vec<&str> = line.splitn(2, " -> ").collect();
+    // First extract the command string and the command args, if any 
+    let c_a_str: Vec<&str> = ca_e_str[0].splitn(2, ' ').collect();
+    let cmd: &str = c_a_str[0];
+    let mut args: Vec<&str> = Vec::new();
+    let mut envars: Vec<&str> = Vec::new();
+
+    if c_a_str.len() > 1 {
+        let arg_string = c_a_str[1].trim();
+        if arg_string.len() > 0 {
+            args = args_from_string(arg_string);
+        }
+    }
+    
+    if ca_e_str.len() > 1 {
+        // We also have envvars to extract
+        let ev: Vec<&str> = ca_e_str[1].split(' ').collect();
+        for es in &ev[..] {
+            if es.len() > 0 {
+                envars.push(es);
+            }
+        }
+    }
+
+    let result: Command = Command::new(cmd, args, envars);
+    result
 }
