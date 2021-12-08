@@ -30,7 +30,8 @@ You can now run\
 `revup`
 
 This will execute all the resim commands that are stored in the _revup.json_ file
-and also create _.env_, _env.bat_ and _env.ps1_ files that have stored all of the generated environment variables.
+and also create a _.env_ file (as well as _env.bat_ and _env.ps1_ if you are on Windows)
+that has stored all of the generated environment variables.
 
 You can now run\
 `source .env` (bash)

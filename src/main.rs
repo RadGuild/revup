@@ -1,6 +1,7 @@
 extern crate clap;
 use clap::{App, Arg, ArgGroup};
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::fs::File;
 use std::io::{prelude::*};
 use std::path::{Path, PathBuf};
@@ -166,8 +167,10 @@ fn run(keep: bool) -> Result<(), Box<dyn std::error::Error>> {
 fn run_file(path: PathBuf, keep: bool) -> Result<(), Box<dyn std::error::Error>> {
     if !keep {
         let _dot_env = std::fs::File::create(".env")?;
-        let _env_bat = std::fs::File::create("env.bat")?;
-        let _env_ps1 = std::fs::File::create("env.ps1")?;
+        if env::consts::OS == "windows" {
+            let _env_bat = std::fs::File::create("env.bat")?;
+            let _env_ps1 = std::fs::File::create("env.ps1")?;
+        }
     }
 
     let file = std::fs::File::open(path)?;
@@ -412,23 +415,25 @@ fn append_env(env: String, ent: String) -> Result<(), Box<dyn std::error::Error>
     env_line.push_str("\n");
     env_file.write_all(env_line.as_bytes())?;
 
-    // for cmd
-    let mut env_file = std::fs::OpenOptions::new().append(true).open("env.bat")?;
-    let mut env_line = String::from("set ");
-    env_line.push_str(&env);
-    env_line.push_str("=\"");
-    env_line.push_str(&ent);
-    env_line.push_str("\"\r\n");
-    env_file.write_all(env_line.as_bytes())?;
+    if env::consts::OS == "windows" {
+        // for cmd
+        let mut env_file = std::fs::OpenOptions::new().append(true).open("env.bat")?;
+        let mut env_line = String::from("set ");
+        env_line.push_str(&env);
+        env_line.push_str("=\"");
+        env_line.push_str(&ent);
+        env_line.push_str("\"\r\n");
+        env_file.write_all(env_line.as_bytes())?;
 
-    // for ps
-    let mut env_file = std::fs::OpenOptions::new().append(true).open("env.ps1")?;
-    let mut env_line = String::from("$");
-    env_line.push_str(&env);
-    env_line.push_str("=\"");
-    env_line.push_str(&ent);
-    env_line.push_str("\"\r\n");
-    env_file.write_all(env_line.as_bytes())?;
+        // for ps
+        let mut env_file = std::fs::OpenOptions::new().append(true).open("env.ps1")?;
+        let mut env_line = String::from("$");
+        env_line.push_str(&env);
+        env_line.push_str("=\"");
+        env_line.push_str(&ent);
+        env_line.push_str("\"\r\n");
+        env_file.write_all(env_line.as_bytes())?;
+    }
 
     Ok(())
 }
