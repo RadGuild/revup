@@ -1,8 +1,10 @@
 extern crate clap;
 use clap::{App, Arg, ArgGroup};
 use serde::{Deserialize, Serialize};
-use std::io::Write;
+use std::fs::File;
+use std::io::{prelude::*};
 use std::path::{Path, PathBuf};
+
 
 #[derive(Serialize, Deserialize)]
 struct Command {
@@ -38,6 +40,7 @@ impl Command {
             envs: envs_owned,
         }
     }
+
     fn print(&self) {
         print!("\nCall:\n{}", self.cmd);
         for arg in &self.args {
@@ -59,45 +62,42 @@ struct Commands {
 fn main() {
     let matches =
         App::new("revup")
-            .version("v0.0.2")
-            .author("author: dRAT3")
+            .version("v0.2.0")
+            .author("author: RadGuild")
             .about(
                 "Sets up the resim simulator for calling functions instantly, looks for revup.json file in the current dir, and runs the resim commands in order storing the created entities address locations in a dotenv file. Run \">>> source .env\" after running revup and all your environment variables will be active in your shell.",
             )
-            .arg(
-                Arg::with_name("file")
-                    .short("f")
-                    .long("file")
-                    .takes_value(true)
-                    .help("Use a custom json file"),
-            )
-            .arg(Arg::with_name("init")
+            .arg(Arg::with_name("json_file")
+                .short("f")
+                .long("file")
+                .takes_value(true)
+                .help("Use a custom json file"),
+            ).arg(Arg::with_name("rev_file")
+                .short("r")
+                .long("rev")
+                .takes_value(true)
+                .help("Use a custom rev file or - for stdin"),
+            ).arg(Arg::with_name("init")
                 .short("i")
                 .long("init")
-                .help(
-                "Creates a default config file in the working directory",
-            ))
-            .arg(Arg::with_name("keep")
+                .help("Creates a default revup.json config file in the working directory"),
+            ).arg(Arg::with_name("keep")
                 .short("k")
                 .long("keep")
-                .help("Keeps the environment variables in the .env, useful when working with multiple revup.json files"))
-            .arg(Arg::with_name("append")
-                .short("a")
-                .long("append")
-                .help("Appends the revup.json file with custom command, to write to a different file append with filename")
-                .takes_value(true))
-            .arg(Arg::with_name("pop")
-                .short("p")
-                .long("pop")
-                .help("Removes the last command in the revup.json file, to write to a different file append with filename")
-                .takes_value(true))
-            .arg(Arg::with_name("list")
+                .help("Keeps the environment variables in the .env, useful when working with multiple revup.json files"),
+            ).arg(Arg::with_name("list")
                 .long("ls")
-                .help("Lists all calls and envs"))
-            .group(
-                ArgGroup::with_name("group")
-                    .args(&["file", "init", "append", "pop", "list"])
-                    .required(false),
+                .help("Lists all calls and envs"),
+            ).arg(Arg::with_name("epoch")
+                .short("e")
+                .long("epoch")
+                .takes_value(true)
+                .min_values(0)
+                .value_name("increment")
+                .help("Increases the epoch by <increment>. If no <increment>, displays the current epoch"),
+            ).group(ArgGroup::with_name("group")
+                .args(&["json_file", "init", "list"])
+                .required(false),
             )
             .get_matches();
 
@@ -106,9 +106,20 @@ fn main() {
         keep = true;
     }
 
-    if matches.is_present("file") {
-        let path = Path::new(matches.value_of("file").unwrap());
+    if matches.is_present("json_file") {
+        let path = Path::new(matches.value_of("json_file").unwrap());
         match run_file(path.to_path_buf(), keep).err() {
+            Some(e) => println!("Critical error, aborting \n{}", e),
+            None => {}
+        }
+    } else if matches.is_present("rev_file") {
+        let filename = matches.value_of("rev_file").unwrap();
+        // println!("rev file:|{}|", filename);
+        let rdr: Box<dyn std::io::Read> = match filename {
+            "-" => Box::new(std::io::stdin()),
+            _ => Box::new(File::open(filename).expect("no such file")),
+        };
+        match run_rev_file(rdr).err() {
             Some(e) => println!("Critical error, aborting \n{}", e),
             None => {}
         }
@@ -117,22 +128,14 @@ fn main() {
             Some(e) => println!("Critical error, aborting \n{}", e),
             None => {}
         }
-    } else if matches.is_present("append") {
-        let path = matches.value_of("append").unwrap_or("revup.json");
-        let path_buf = PathBuf::from(path);
-        match run_append(path_buf).err() {
-            Some(e) => println!("Critical error, aborting \n{}", e),
-            None => {}
-        }
-    } else if matches.is_present("append") {
-        let path = matches.value_of("append").unwrap_or("revup.json");
-        let path_buf = PathBuf::from(path);
-        match run_pop(path_buf).err() {
-            Some(e) => println!("Critical error, aborting \n{}", e),
-            None => {}
-        }
     } else if matches.is_present("list") {
         match run_ls().err() {
+            Some(e) => println!("Critical error, aborting \n{}", e),
+            None => {}
+        }
+    } else if matches.is_present("epoch") {
+        let epoch_increment = matches.value_of("epoch");
+        match run_epoch(epoch_increment).err() {
             Some(e) => println!("Critical error, aborting \n{}", e),
             None => {}
         }
@@ -171,34 +174,62 @@ fn run_file(path: PathBuf, keep: bool) -> Result<(), Box<dyn std::error::Error>>
     let json: Commands = serde_json::from_reader(file)?;
 
     for cmd in json.commands {
-        //Replace $ with values from .env //Quick 'n Dirty no idea how this is going to behave on
-        //non utf-8 systems , can somebody refactor this and create a proper method
-        let mut args_vec: Vec<String> = Vec::new();
-        for arg in &cmd.args {
-            if arg.contains("$") {
-                let mut loc = arg.find("$").unwrap();
-                loc += 1;
-                let substr_arg = &arg[loc..];
-                let find_string = substr_arg.to_string();
+        run_cmd(cmd.cmd, cmd.args, cmd.envs)?;
+    }
 
-                //load env vars
-                let dot_env = std::fs::read_to_string(".env")?;
-                let env_lines = dot_env.lines();
+    Ok(())
+}
 
-                for line in env_lines {
-                    let env_var: Vec<&str> = line.split("=").collect();
-                    if env_var[0] == find_string {
-                        loc -= 1;
-                        let mut final_arg: String = arg[..loc].to_string();
-                        final_arg.push_str(env_var[1]);
-                        args_vec.push(final_arg);
+fn run_rev_file(mut reader: Box<dyn std::io::Read>) -> Result<(), Box<dyn std::error::Error>> {
+    let mut all_text = String::new();
+    match reader.read_to_string(&mut all_text).err() {
+        Some(e) => println!("Error reading input, aborting \n{}", e),
+        None => {}
+    };
+    let lines = all_text.split('\n');
+    for line in lines {
+        // println!("{:?}", line);
+        let rawstr: Vec<&str> = line.splitn(2, "//").collect();
+        // println!("{}", vstr[0]);
+        let l = rawstr[0].trim();
+        if l.len() > 0 {
+            // println!("{}", l);
+            if l.starts_with("#!") {
+                continue;
+            }
+            let ca_e_str: Vec<&str> = l.splitn(2, " -> ").collect();
+            // First extract the command string and the command args, if any 
+            let c_a_str: Vec<&str> = ca_e_str[0].splitn(2, ' ').collect();
+            let cmd: String = c_a_str[0].to_string();
+            let mut args: Vec<String> = Vec::new();
+            let mut envars: Vec<String> = Vec::new();
+
+            if c_a_str.len() > 1 {
+                let arg_string = c_a_str[1].trim().to_string();
+                if arg_string.len() > 0 {
+                    args = args_from_string(arg_string);
+                }
+            }
+            
+            if ca_e_str.len() > 1 {
+                // We also have envvars to extract
+                let ev: Vec<&str> = ca_e_str[1].split(' ').collect();
+                for es in &ev[..] {
+                    if es.len() > 0 {
+                        envars.push(es.to_string());
                     }
                 }
+            }
+            if cmd != "-e" {
+                run_cmd(cmd, args, envars)?;
             } else {
-                args_vec.push(arg.to_string());
+                if c_a_str.len() > 1 {
+                    run_epoch(Some(c_a_str[1]))?;
+                } else {
+                    run_epoch(None)?;
+                }
             }
         }
-        run_cmd(cmd.cmd, args_vec, cmd.envs)?;
     }
 
     Ok(())
@@ -219,42 +250,6 @@ fn run_init() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn run_append(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Enter resim command followed by args \nExample: call-method $radiswap swap_token 100,tokenEMT 100,tokenGMT");
-
-    let mut s = String::new();
-    std::io::stdin().read_line(&mut s)?;
-    let mut arg_vec: Vec<&str> = s.split_whitespace().collect();
-    let cmd = arg_vec.remove(0);
-    println!(
-        "Enter the environment variables for the returned components in the correct order, if any"
-    );
-
-    let mut s = String::new();
-    std::io::stdin().read_line(&mut s)?;
-    let env_vec: Vec<&str> = s.split_whitespace().collect();
-
-    let cmd_command = Command::new(cmd, arg_vec, env_vec);
-
-    let json_file = std::fs::File::open(&path)?;
-    let mut json: Commands = serde_json::from_reader(json_file)?;
-    json.commands.push(cmd_command);
-
-    let json_file = std::fs::File::create(path)?;
-    let ret = serde_json::to_writer_pretty(json_file, &json)?;
-
-    Ok(ret)
-}
-
-fn run_pop(path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    let json_file = std::fs::File::open(&path)?;
-    let mut json: Commands = serde_json::from_reader(json_file)?;
-    let len = json.commands.len();
-    let rm = json.commands.remove(len);
-    println!("Success, removed {}", rm.cmd);
-    Ok(())
-}
-
 fn run_ls() -> Result<(), Box<dyn std::error::Error>> {
     let json_file = std::fs::File::open("revup.json")?;
     let json: Commands = serde_json::from_reader(json_file)?;
@@ -270,21 +265,85 @@ fn run_ls() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn run_epoch(epoch_increment: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+    let res = std::process::Command::new("resim").arg("show-configs").output()?;
+    let stdout = String::from_utf8_lossy(&res.stdout);
+    let current_epoch_line = stdout.lines()
+        .nth(1)
+        .unwrap();
+    let current_epoch = current_epoch_line.trim()
+        .split(" ")
+        .last()
+        .unwrap();
+
+    match epoch_increment {
+        Some(value) => {
+            // increment the epoch
+            let current = current_epoch.to_string().parse::<i32>()?;
+            let increment = value.parse::<i32>()?;
+            let new_epoch = current + increment;
+
+            println!("Attempting to update epoch from {} to {}", current, new_epoch);
+            let res = std::process::Command::new("resim")
+                .args(["set-current-epoch", &new_epoch.to_string()])
+                .output()?;
+            println!("{}", String::from_utf8_lossy(&res.stdout).to_string().trim());
+            println!("{}", String::from_utf8_lossy(&res.stderr).to_string());
+
+            Ok(())
+        },
+        None => {
+            // print the epoch
+            println!("Current epoch: {}", current_epoch);
+            Ok(())
+        }
+    }
+}
+
 fn run_cmd(
     command: String,
     args: Vec<String>,
     envs: Vec<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // First deal with envvar substitutions
+    // Replace $ with values from .env //Quick 'n Dirty no idea how this is going to behave on
+    // non utf-8 systems , can somebody refactor this and create a proper method
+    let mut args_vec: Vec<String> = Vec::new();
+    for arg in args {
+        if arg.contains("$") {
+            let mut loc = arg.find("$").unwrap();
+            loc += 1;
+            let substr_arg = &arg[loc..];
+            let find_string = substr_arg.to_string();
+
+            //load env vars
+            let dot_env = std::fs::read_to_string(".env")?;
+            let env_lines = dot_env.lines();
+
+            for line in env_lines {
+                let env_var: Vec<&str> = line.split("=").collect();
+                if env_var[0] == find_string {
+                    loc -= 1;
+                    let mut final_arg: String = arg[..loc].to_string();
+                    final_arg.push_str(env_var[1]);
+                    args_vec.push(final_arg);
+                }
+            }
+        } else {
+            args_vec.push(arg.to_string());
+        }
+    }
+
     let res;
-    if !args.is_empty() {
+    if !args_vec.is_empty() {
         print!(">>> {}", command);
-        for arg in &args {
+        for arg in &args_vec {
             print!(" {} ", arg);
         }
         print!("\n");
         res = std::process::Command::new("resim")
             .arg(&command)
-            .args(&args)
+            .args(&args_vec)
             .output()?;
     } else {
         println!(">>> {}", command);
@@ -301,7 +360,15 @@ fn run_cmd(
             let _res = append_env(env_it.to_string(), ent_it.to_string())?;
         }
     }
-    Ok(())
+
+    if command == "reset".to_string() {
+        // reset the .env file
+        let mut dot_env = std::fs::File::create(".env")?;
+        let env: String = "tokenXRD=030000000000000000000000000000000000000000000000000004\n".to_string();
+        Ok(dot_env.write_all(env.as_bytes())?)
+    } else {
+        Ok(())   
+    }
 }
 
 fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Error>> {
@@ -321,8 +388,7 @@ fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Erro
         if line.contains(" Component: ")
             || line.contains(" ResourceDef: ")
             || line.contains(" Package: ")
-            || line.contains("Public key:")
-        // special case for new-account
+            || line.contains("Public key:") // special case for new-account
         {
             let entity_vec: Vec<&str> = line.split_whitespace().collect();
             let entity = entity_vec[2].to_string();
@@ -397,7 +463,7 @@ fn create_default_config_file() -> Result<(), Box<dyn std::error::Error>> {
         ["package"].to_vec(),
     ));
 
-    println!("Enter the arguments for the first function call \nexample: PackageName new 200,$tokenEMT 200,$tokenGMT \nNo ticks, qoutes or backticks");
+    println!("Enter the arguments for the first function call \nexample: BlueprintName new arg1 arg2 \n(No ticks, quotes or backticks)");
     let mut s = String::new();
     std::io::stdin().read_line(&mut s)?;
     let mut args_vec: Vec<&str> = s.split_whitespace().collect();
@@ -425,4 +491,36 @@ fn ret_string_vec(vec: Vec<&str>) -> Vec<String> {
         owned_vec.push(v.to_string());
     }
     owned_vec
+}
+
+/*
+fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
+    let file = File::open(filename).expect("no such file");
+    let buf = BufReader::new(file);
+    buf.lines()
+        .map(|l| l.expect("Could not parse line"))
+        .collect()
+}
+*/
+
+fn args_from_string(this_string: String) -> Vec<String> {
+    let mut result: Vec<&str> = Vec::new();
+    let top_split: Vec<&str> = this_string.split('"').collect();
+    let mut quoted = false;
+    for section in top_split {
+        if quoted == false {
+            let words: Vec<&str> = section.split_whitespace().collect();
+            for w in words {
+                let word = w.trim();
+                if word.len() > 0 {
+                    result.push(word);
+                }
+            }
+            quoted = true;
+        } else {
+            result.push(section);
+            quoted = false;
+        }
+    }
+    ret_string_vec(result)
 }
