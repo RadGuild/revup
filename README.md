@@ -39,7 +39,7 @@ You can now run\
 `env.ps1` (PowerShell)
 
 This will make the variables usable in your shell, make sure that you re-run
-the command everytime you've run `revup`.
+the command again after each time that you run `revup`.
 
 ### Epoch
 
