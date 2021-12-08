@@ -24,6 +24,8 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+    - name: Install
+      run: cargo install --verbose --path .
 
   publish:
     name: Publish
