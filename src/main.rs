@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{prelude::*};
 use std::path::{Path, PathBuf};
-use simple_server::Server;
+use simple_server::{Method, Server, StatusCode};
 
 const PORT: &str = "7746";
 const IP: &str = "127.0.0.1";
@@ -319,9 +319,23 @@ fn run_epoch(epoch_increment: Option<&str>) -> Result<(), Box<dyn std::error::Er
 
 fn run_server() -> Result<(), Box<dyn std::error::Error>> {
     println!("Server listening on port {}", PORT);
-    let server = Server::new(|request, mut response|{
+    let server = Server::new(|request, mut response| {
         println!("request received: {} {}", request.method(), request.uri());
-        Ok(response.body(std::fs::read_to_string(".env")?.into_bytes())?)
+        match request.method() {
+            &Method::GET => {
+                let uri: String = request.uri().to_string();
+                if uri.starts_with("/rev/") {
+                    let command_str: String = uri[5..].to_string();
+                    Ok(response.body(command_str.into_bytes())?)
+                } else {
+                    Ok(response.body(std::fs::read_to_string(".env")?.into_bytes())?)
+                }
+            }
+            _ => {
+                response.status(StatusCode::NOT_FOUND);
+                Ok(response.body(b"<h1>404</h1><p>Not found!</p>".to_vec())?)
+            }
+        }
     });
 
     server.listen(IP, PORT);
