@@ -32,13 +32,16 @@ You can now run\
 `revup`
 
 This will execute all the resim commands that are stored in the _revup.json_ file
-and also create a _.env_ file that has stored all of the generated environment variables.
+and also create a _.env_ file (as well as _env.bat_ and _env.ps1_ if you are on Windows)
+that has stored all of the generated environment variables.
 
 You can now run\
-`source .env`
+`source .env` (bash)
+`env.bat` (cmd)
+`env.ps1` (PowerShell)
 
-This will make the .env variables usable in your shell, make sure that you re-run
-`source .env` again after each time that you run `revup`.
+This will make the variables usable in your shell, make sure that you re-run
+the command again after each time that you run `revup`.
 
 ### Epoch
 
@@ -105,6 +108,8 @@ to include:
 revup*.json
 *.rev
 .env
+env.bat
+env.ps1
 ```
 
 ### Going forward:
