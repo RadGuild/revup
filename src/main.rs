@@ -349,7 +349,29 @@ fn run_server() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 } else if uri.starts_with("/env/") {
                     Ok(response.body(std::fs::read_to_string(".env")?.into_bytes())?)
-                } else{
+                } else if uri.starts_with("/show/") {
+                    let mut out_vec: Vec<String> = Vec::new();
+                    let dot_env = std::fs::read_to_string(".env")?;
+                    let env_lines = dot_env.lines();
+                    for line in env_lines {
+                        let env_var: Vec<&str> = line.split("=").collect();
+                        let cmd_str: String = format!("show {}", env_var[1]);
+                        let cmd: Command = get_command( &cmd_str );
+                        match run_cmd(cmd.cmd, cmd.args, cmd.envs) {
+                            Ok(out) => {
+                                let hr_cmd_str: String = format!("show ${}", env_var[0]);
+                                out_vec.push( hr_cmd_str );
+                                out_vec.push( out.to_string() )
+                            }
+                            Err(_e) => {
+                                let error_out: String = format!("error with ${}", env_var[0].to_string());
+                                out_vec.push(error_out)
+                            }
+                        }
+                    }
+                    let result: String = out_vec.join("\n");
+                    Ok(response.body(result.into_bytes())?)
+                } else {
                     response.status(StatusCode::BAD_REQUEST);
                     Ok(response.body(b"<h1>404</h1><p>Bad Request</p>".to_vec())?)
                 }
