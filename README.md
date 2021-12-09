@@ -1,5 +1,7 @@
 # revup
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## Install
 
 ### Linux
@@ -30,13 +32,16 @@ You can now run\
 `revup`
 
 This will execute all the resim commands that are stored in the _revup.json_ file
-and also create a _.env_ file that has stored all of the generated environment variables.
+and also create a _.env_ file (as well as _env.bat_ and _env.ps1_ if you are on Windows)
+that has stored all of the generated environment variables.
 
 You can now run\
-`source .env`
+`source .env` (bash)
+`env.bat` (cmd)
+`env.ps1` (PowerShell)
 
-This will make the .env variables usable in your shell, make sure that you re-run
-`source .env` again after each time that you run `revup`.
+This will make the variables usable in your shell, make sure that you re-run
+the command again after each time that you run `revup`.
 
 ### Epoch
 
@@ -103,14 +108,17 @@ to include:
 revup*.json
 *.rev
 .env
+env.bat
+env.ps1
 ```
 
 ### Going forward:
 
-Normal maintenace is underway. Feel free to add, comment upon or even fix an open issue.
+Normal maintenance is underway. Feel free to add, comment upon or even fix an open issue.
 
 We also have defined some projects outlining future directions. To reward our developers and
 help us move forward with our plans. you may send a donation of XRD to:
+
 ```
 rdx1qspk7l8jfqmafwfcpzhx25p3qczj0nczqd9yvaux4892lrw2xgksnfgmkkr69
 ```

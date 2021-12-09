@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - develop
+    tags:
+      - v*
+  pull_request:
+    branches:
+      - develop
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
+    - name: Install
+      run: cargo install --verbose --path .
+
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: startswith(github.ref, 'refs/tags/v')
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Cargo Publish
+      run: cargo publish --token ${{ secrets.CARGO_TOKEN }}
