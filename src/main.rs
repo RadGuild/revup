@@ -7,7 +7,6 @@ use std::io::{prelude::*};
 use std::path::{Path, PathBuf};
 use simple_server::{Method, Server, StatusCode};
 use percent_encoding::percent_decode;
-// use std::str::Utf8Error;
 
 const PORT: &str = "7746";
 const IP: &str = "127.0.0.1";
