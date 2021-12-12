@@ -223,7 +223,8 @@ fn run_rev_file(mut reader: Box<dyn std::io::Read>) -> Result<(), Box<dyn std::e
                     }
                 }
             }
-            if cmd != "-e" {
+            
+            if cmd != "-e" && cmd != "epoch" {
                 run_cmd(cmd, args, envars)?;
             } else {
                 if c_a_str.len() > 1 {
