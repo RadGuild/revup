@@ -1,0 +1,15 @@
+{
+  "name": "spinup",
+  "version": "0.1.0",
+  "description": "Monitor revup and sim state",
+  "main": "spinup.js",
+  "scripts": {
+    "test": "node spinup.js all"
+  },
+  "author": "Rock Howard",
+  "license": "MIT",
+  "dependencies": {
+    "request": "^2.88.2",
+    "request-promise": "^4.2.6"
+  }
+}
