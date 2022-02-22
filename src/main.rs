@@ -382,9 +382,14 @@ fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Erro
 
     match stdout.rfind("New Entities") {
         Some(loc) => location = loc,
+
         None => match stdout.rfind("A new account has been created!") {
             Some(loc) => location = loc,
-            None => return Err("No entities found".into()),
+
+            None => match stdout.rfind("New Package") {
+                Some(loc) => location = loc,
+                None => return Err("No entities found".into()),
+            },
         },
     }
 
@@ -397,6 +402,7 @@ fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Erro
             || line.contains(" Package: ")
             || line.contains("Public key:") // special case for new-account
             || line.contains("Account address:") // special case for new-account
+            || line.contains("New Package:")  // special case for publish
         {
             let entity_vec: Vec<&str> = line.split_whitespace().collect();
             let entity = entity_vec[2].to_string();
