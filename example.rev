@@ -1,0 +1,56 @@
+// Revup File for radixdlt Radiswap example tests :  revup -r example.rev
+
+// Reset simulator state	resim reset
+reset
+
+// Create an account	resim new-account
+new-account -> account pubKey
+new-account -> account2 pubKey2
+
+// Change the default account	resim set-default-account <account_address> <account_public_key>
+set-default-account $account $pubKey
+
+// Create a badge with fixed supply	resim new-badge-fixed <amount>
+new-badge-fixed 1 -> adminBadge
+
+// Create a badge with mutable supply	resim new-badge-mutable <minter_badge_address>
+new-badge-mutable $adminBadge -> tokenBadge
+
+// Create a token with mutable supply	resim new-token-mutable <minter_badge_address>
+new-token-mutable $tokenBadge -> mutableToken
+
+// Mint resource	resim mint <amount> <resource_address> <minter_badge_address>
+mint 2 $tokenBadge $adminBadge
+mint 17 $mutableToken $tokenBadge
+
+// Create a token with fixed supply	resim new-token-fixed <amount>
+new-token-fixed 1000 -> tokenA
+new-token-fixed 2000 -> tokenB
+
+// Transfer resource	resim transfer <amount>,<resource_address> <recipient_address>
+transfer 1,$tokenBadge $account2
+transfer 300,$tokenA $account2
+transfer 200,$tokenA $account2
+
+// Publish a package	resim publish <path_to_package_dir>
+publish . -> package
+
+// Call a function	resim call-function <package_address> <blueprint_name> <function> <args>
+call-function $package Radiswap instantiate_pool 500,$tokenA 1000,$tokenB 500 "LP" "LP Token" "" 0.0 -> adminBadge lpToken radiswap
+
+// Call a method	resim call-method <component_address> <method> <args>
+call-method $radiswap remove_liquidity 200,$lpToken
+call-method $radiswap add_liquidity 100,$tokenA 200,$tokenB
+call-method $radiswap swap 100,$tokenA 
+call-method $radiswap swap 20,$tokenB 
+
+// Show info about an address	resim show <address>
+show $account
+show $account2
+show $radiswap
+
+// List all entities in simulator	resim show-ledger
+show-ledger
+
+// Export the ABI of a blueprint	resim export-abi <package_address> <blueprint_name>
+export-abi $package Radiswap
