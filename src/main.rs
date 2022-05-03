@@ -399,9 +399,11 @@ fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Erro
     for line in lines {
         if line.contains(" Component: ")
             || line.contains(" ResourceDef: ")
+            || line.contains(" Resource: ") // ResourceDef renamed to Resource in Scrypto 0.4
             || line.contains(" Package: ")
             || line.contains("Public key:") // special case for new-account
             || line.contains("Account address:") // special case for new-account
+            || line.contains("Account component address:") // special case for new-account Scrypto 0.4
             || line.contains("New Package:")  // special case for publish
         {
             let entity_vec: Vec<&str> = line.split_whitespace().collect();
