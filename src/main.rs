@@ -397,15 +397,18 @@ fn walk_entities(stdout: String) -> Result<Vec<String>, Box<dyn std::error::Erro
     let lines: Vec<&str> = substr_entities.lines().collect();
 
     for line in lines {
-        if line.contains(" Component: ")
+        if     line.contains(" Component: ")
+            || line.contains(" Resource: ")
             || line.contains(" ResourceDef: ")
             || line.contains(" Package: ")
             || line.contains("Public key:") // special case for new-account
+            || line.contains("Account component address:") // special case for new-account
             || line.contains("Account address:") // special case for new-account
             || line.contains("New Package:")  // special case for publish
         {
-            let entity_vec: Vec<&str> = line.split_whitespace().collect();
-            let entity = entity_vec[2].to_string();
+            let entity_vec_0: Vec<&str> = line.split(':').collect();
+            let entity_vec: Vec<&str> = entity_vec_0[1].split_whitespace().collect();
+            let entity = entity_vec[0].to_string();
             ret_vec.push(entity);
         }
     }
